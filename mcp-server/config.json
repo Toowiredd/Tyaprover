@@ -1,0 +1,48 @@
+{
+  "server": {
+    "name": "tyaprover",
+    "version": "0.1.0",
+    "description": "MCP Server for Tyaprover deployment platform"
+  },
+  "api": {
+    "baseUrl": "http://localhost:7474",
+    "version": "v2",
+    "timeout": 30000,
+    "retryAttempts": 3,
+    "retryDelay": 1000
+  },
+  "logging": {
+    "level": "info",
+    "format": "json",
+    "enabled": true
+  },
+  "features": {
+    "listApps": {
+      "enabled": true,
+      "endpoint": "/user/apps/appData"
+    },
+    "getAppDetails": {
+      "enabled": true,
+      "endpoint": "/user/apps/appData/{appName}"
+    },
+    "deployApp": {
+      "enabled": true,
+      "endpoint": "/user/apps/appData",
+      "method": "POST"
+    },
+    "updateApp": {
+      "enabled": false,
+      "endpoint": "/user/apps/appData/{appName}",
+      "method": "PUT"
+    },
+    "deleteApp": {
+      "enabled": false,
+      "endpoint": "/user/apps/appData/{appName}",
+      "method": "DELETE"
+    }
+  },
+  "security": {
+    "authHeader": "x-captain-auth",
+    "validateToken": true
+  }
+}

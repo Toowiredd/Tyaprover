@@ -1,0 +1,14 @@
+{
+    "tyaprover": {
+        "command": "node",
+        "args": [
+            "/home/toowired/ACTIVE/Tyaprover/mcp-server/build/index.js"
+        ],
+        "cwd": "/home/toowired/ACTIVE/Tyaprover/mcp-server",
+        "env": {
+            "NODE_ENV": "production",
+            "TYAPROVER_API_URL": "https://captain.toowired.win",
+            "TYAPROVER_NAMESPACE": "captain"
+        }
+    }
+}

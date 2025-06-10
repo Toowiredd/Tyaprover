@@ -1,10 +1,10 @@
-import { McpServer, McpServerOptionsCapabilities } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio";
 import { z } from "zod";
 import fetch from 'node-fetch'; // For making API calls to Tyaprover
 
 // Configuration from environment variables
-const TYAPROVER_API_URL = process.env.TYAPROVER_API_URL; // e.g., http://localhost:3000 or https://captain.yourdomain.com
+const TYAPROVER_API_URL = process.env.TYAPROVER_API_URL; // e.g., http://localhost:7474 or https://captain.yourdomain.com
 const TYAPROVER_AUTH_TOKEN = process.env.TYAPROVER_AUTH_TOKEN;
 const TYAPROVER_NAMESPACE = process.env.TYAPROVER_NAMESPACE || 'captain';
 const CAPROVER_API_VERSION = process.env.CAPROVER_API_VERSION || 'v2'; // Or fetch from CapRover constants if possible
@@ -107,8 +107,8 @@ server.tool(
                     return { content: [{ type: "text", text: `Error: App '${appName}' not found.` }] };
                 }
             } else {
-                 console.error("Unexpected response structure from Tyaprover listApps (for getAppDetails):", response);
-                 return { content: [{ type: "text", text: `Error: Unexpected API response structure. Status: ${response.status}, Description: ${response.description}` }] };
+                console.error("Unexpected response structure from Tyaprover listApps (for getAppDetails):", response);
+                return { content: [{ type: "text", text: `Error: Unexpected API response structure. Status: ${response.status}, Description: ${response.description}` }] };
             }
         } catch (error: any) {
             return { content: [{ type: "text", text: `Error getting app details for '${appName}': ${error.message}` }] };
@@ -182,10 +182,10 @@ server.tool(
             if (response && response.status === 100) { // Assuming status 100 is OK from BaseApi
                 return { content: [{ type: "text", text: `Application '${appName}' deleted successfully. Description: ${response.description}` }] };
             } else if (response && response.description) { // If there's a description even on non-100 status from BaseApi
-                 console.error(`Error response from Tyaprover deleteApp API: Status ${response.status}, Desc: ${response.description}`);
-                 return { content: [{ type: "text", text: `Failed to delete application '${appName}'. API Status: ${response.status}, Message: ${response.description}` }] };
+                console.error(`Error response from Tyaprover deleteApp API: Status ${response.status}, Desc: ${response.description}`);
+                return { content: [{ type: "text", text: `Failed to delete application '${appName}'. API Status: ${response.status}, Message: ${response.description}` }] };
             }
-             else {
+            else {
                 // Handle cases where response might be plain text or unexpected JSON from non-BaseApi error
                 const responseText = typeof response === 'string' ? response : JSON.stringify(response);
                 console.error(`Unexpected response from Tyaprover deleteApp API: ${responseText}`);
@@ -239,14 +239,14 @@ server.tool(
             if (!updatedAppDefinition.imageName && appDefinition.imageName) {
                 updatedAppDefinition.imageName = appDefinition.imageName;
             }
-             if (updatedAppDefinition.instanceCount === undefined && appDefinition.instanceCount !== undefined) {
-                 updatedAppDefinition.instanceCount = appDefinition.instanceCount;
-             }
-             if (updatedAppDefinition.hasPersistentData === undefined && appDefinition.hasPersistentData !== undefined) {
-                 updatedAppDefinition.hasPersistentData = appDefinition.hasPersistentData;
-             }
-             // etc. for other potentially required fields if the fetched appDefinition was partial.
-             // However, CapRover's /apps endpoint usually returns fairly complete definitions.
+            if (updatedAppDefinition.instanceCount === undefined && appDefinition.instanceCount !== undefined) {
+                updatedAppDefinition.instanceCount = appDefinition.instanceCount;
+            }
+            if (updatedAppDefinition.hasPersistentData === undefined && appDefinition.hasPersistentData !== undefined) {
+                updatedAppDefinition.hasPersistentData = appDefinition.hasPersistentData;
+            }
+            // etc. for other potentially required fields if the fetched appDefinition was partial.
+            // However, CapRover's /apps endpoint usually returns fairly complete definitions.
 
             // Step 3: POST the updated app definition
             // This is similar to deployNewApp but we are explicitly updating.
@@ -298,18 +298,18 @@ server.tool(
                 updatedAppDefinition.imageName = appDefinition.imageName;
             }
             if (updatedAppDefinition.hasPersistentData === undefined && appDefinition.hasPersistentData !== undefined) {
-                 updatedAppDefinition.hasPersistentData = appDefinition.hasPersistentData;
+                updatedAppDefinition.hasPersistentData = appDefinition.hasPersistentData;
             }
             // Add other fields like envVars, ports, volumes if they are not part of '...' spread from a full appDef.
             // Assuming appDefinition from GET /apps is sufficiently complete.
             if (updatedAppDefinition.envVars === undefined && appDefinition.envVars !== undefined) {
-                 updatedAppDefinition.envVars = appDefinition.envVars;
+                updatedAppDefinition.envVars = appDefinition.envVars;
             }
             if (updatedAppDefinition.ports === undefined && appDefinition.ports !== undefined) {
-                 updatedAppDefinition.ports = appDefinition.ports;
+                updatedAppDefinition.ports = appDefinition.ports;
             }
             if (updatedAppDefinition.volumes === undefined && appDefinition.volumes !== undefined) {
-                 updatedAppDefinition.volumes = appDefinition.volumes;
+                updatedAppDefinition.volumes = appDefinition.volumes;
             }
 
 
