@@ -2,7 +2,6 @@
   "name": "tyaprover-mcp-server",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
   "description": "MCP Server for controlling Tyaprover (CapRover) via Claude Code CLI.",
   "main": "build/index.js",
   "bin": {
@@ -11,7 +10,10 @@
   "scripts": {
     "build": "tsc && chmod +x ./build/index.js",
     "start": "node ./build/index.js",
-    "test": "jest"
+    "dev": "tsx src/index.ts",
+    "test": "jest",
+    "lint": "eslint src/**/*.ts",
+    "lint:fix": "eslint src/**/*.ts --fix"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",

@@ -10,7 +10,7 @@ const path = require('path');
 // Load configuration
 function loadConfig() {
     let config = {};
-    
+
     // Try to load config.json
     try {
         const configPath = path.join(__dirname, 'config.json');
@@ -20,7 +20,7 @@ function loadConfig() {
     } catch (error) {
         console.error('Warning: Could not load config.json:', error.message);
     }
-    
+
     return config;
 }
 
@@ -60,7 +60,7 @@ class TyaproverMCPServer {
                 message,
                 ...(data && { data })
             };
-            
+
             if (config.logging?.format === 'json') {
                 console.error(JSON.stringify(logEntry));
             } else {
@@ -243,7 +243,7 @@ class TyaproverMCPServer {
         if (!TYAPROVER_AUTH_TOKEN) {
             this.log('warn', 'TYAPROVER_AUTH_TOKEN not set - API calls may fail');
         }
-        
+
         this.log('info', 'Starting Tyaprover MCP Server', {
             apiUrl: TYAPROVER_API_URL,
             namespace: TYAPROVER_NAMESPACE,
@@ -253,7 +253,7 @@ class TyaproverMCPServer {
 
         const transport = new StdioServerTransport();
         await this.server.connect(transport);
-        
+
         this.log('info', 'Tyaprover MCP server running on stdio');
         console.error("Tyaprover MCP server running on stdio");
     }

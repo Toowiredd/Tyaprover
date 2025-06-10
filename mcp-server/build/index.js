@@ -1,7 +1,14 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio";
-import { z } from "zod";
-import fetch from 'node-fetch'; // For making API calls to Tyaprover
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.server = void 0;
+exports.main = main;
+const mcp_1 = require("@modelcontextprotocol/sdk/server/mcp");
+const stdio_1 = require("@modelcontextprotocol/sdk/server/stdio");
+const zod_1 = require("zod");
+const node_fetch_1 = __importDefault(require("node-fetch")); // For making API calls to Tyaprover
 // Configuration from environment variables
 const TYAPROVER_API_URL = process.env.TYAPROVER_API_URL; // e.g., http://localhost:7474 or https://captain.yourdomain.com
 const TYAPROVER_AUTH_TOKEN = process.env.TYAPROVER_AUTH_TOKEN;
@@ -15,13 +22,12 @@ const serverCapabilities = {
     resources: {}, // Not implementing resource providers in this iteration
     tools: {}, // Tools will be added below
 };
-const server = new McpServer({
+const server = new mcp_1.McpServer({
     name: "tyaprover",
     version: "0.1.0",
     capabilities: serverCapabilities,
 });
-// Export server for testing purposes
-export { server };
+exports.server = server;
 // --- Helper function to call Tyaprover API ---
 async function callTyaproverApi(method, path, body) {
     const url = `${TYAPROVER_API_URL}/api/${CAPROVER_API_VERSION}/user${path}`;
@@ -31,7 +37,7 @@ async function callTyaproverApi(method, path, body) {
         'x-captain-auth': TYAPROVER_AUTH_TOKEN,
     };
     try {
-        const response = await fetch(url, {
+        const response = await (0, node_fetch_1.default)(url, {
             method,
             headers,
             body: body ? JSON.stringify(body) : undefined,
@@ -76,7 +82,7 @@ async () => {
     }
 });
 // --- Tool: getAppDetails ---
-server.tool("getAppDetails", "Gets detailed information for a specific application.", { appName: z.string().describe("The name of the application.") }, async ({ appName }) => {
+server.tool("getAppDetails", "Gets detailed information for a specific application.", { appName: zod_1.z.string().describe("The name of the application.") }, async ({ appName }) => {
     try {
         // CapRover's API to get a single app definition is typically by listing all and filtering,
         // or by accessing a specific app's data which might be structured differently.
@@ -103,15 +109,15 @@ server.tool("getAppDetails", "Gets detailed information for a specific applicati
 });
 // --- Tool: deployNewApp ---
 server.tool("deployNewApp", "Deploys a new application or updates an existing one. For updates, existing settings not specified will be preserved if possible, but providing specific parameters (like envVars) usually overwrites them.", {
-    appName: z.string().describe("Unique name for the application."),
-    imageName: z.string().describe("Docker image name and tag (e.g., 'nginx:latest')."),
-    instanceCount: z.number().int().positive().optional().describe("Number of instances."),
-    description: z.string().optional().describe("Application description."),
-    environmentVariables: z.array(z.object({ key: z.string(), value: z.string() })).optional().describe("Environment variables."),
-    portMappings: z.array(z.object({ containerPort: z.number().int(), hostPort: z.number().int().optional() })).optional().describe("Port mappings."),
-    volumes: z.array(z.object({ appName: z.string().describe('Should be the appName for the volume if specific, or a generic volume name.'), hostPath: z.string(), containerPath: z.string() })).optional().describe("Persistent volumes. hostPath is the volume name visible in CapRover, not an absolute server path."),
-    captainDefinitionContent: z.string().optional().describe("Raw JSON content of a captain-definition file as a string."),
-    gitHash: z.string().optional().describe("For Git-based deployments, the commit hash.")
+    appName: zod_1.z.string().describe("Unique name for the application."),
+    imageName: zod_1.z.string().describe("Docker image name and tag (e.g., 'nginx:latest')."),
+    instanceCount: zod_1.z.number().int().positive().optional().describe("Number of instances."),
+    description: zod_1.z.string().optional().describe("Application description."),
+    environmentVariables: zod_1.z.array(zod_1.z.object({ key: zod_1.z.string(), value: zod_1.z.string() })).optional().describe("Environment variables."),
+    portMappings: zod_1.z.array(zod_1.z.object({ containerPort: zod_1.z.number().int(), hostPort: zod_1.z.number().int().optional() })).optional().describe("Port mappings."),
+    volumes: zod_1.z.array(zod_1.z.object({ appName: zod_1.z.string().describe('Should be the appName for the volume if specific, or a generic volume name.'), hostPath: zod_1.z.string(), containerPath: zod_1.z.string() })).optional().describe("Persistent volumes. hostPath is the volume name visible in CapRover, not an absolute server path."),
+    captainDefinitionContent: zod_1.z.string().optional().describe("Raw JSON content of a captain-definition file as a string."),
+    gitHash: zod_1.z.string().optional().describe("For Git-based deployments, the commit hash.")
 }, async (input) => {
     try {
         // Construct the app definition payload for CapRover API
@@ -146,7 +152,7 @@ server.tool("deployNewApp", "Deploys a new application or updates an existing on
 });
 // --- Tool: deleteApp ---
 server.tool("deleteApp", "Deletes an application. This is a destructive operation and cannot be undone easily.", {
-    appName: z.string().describe("The name of the application to delete."),
+    appName: zod_1.z.string().describe("The name of the application to delete."),
 }, async ({ appName }) => {
     try {
         // CapRover API for deleting an app is typically DELETE /api/v2/user/apps/appdefinitions/:appName
@@ -173,10 +179,10 @@ server.tool("deleteApp", "Deletes an application. This is a destructive operatio
 });
 // --- Tool: setAppEnvironmentVariables ---
 server.tool("setAppEnvironmentVariables", "Sets or updates environment variables for an application. This replaces all existing environment variables with the provided set.", {
-    appName: z.string().describe("The name of the application."),
-    environmentVariables: z.array(z.object({
-        key: z.string().describe("Environment variable key."),
-        value: z.string().describe("Environment variable value.")
+    appName: zod_1.z.string().describe("The name of the application."),
+    environmentVariables: zod_1.z.array(zod_1.z.object({
+        key: zod_1.z.string().describe("Environment variable key."),
+        value: zod_1.z.string().describe("Environment variable value.")
     })).describe("The complete set of environment variables to apply."),
 }, async ({ appName, environmentVariables }) => {
     try {
@@ -230,8 +236,8 @@ server.tool("setAppEnvironmentVariables", "Sets or updates environment variables
 });
 // --- Tool: scaleApp ---
 server.tool("scaleApp", "Changes the number of running instances for an application.", {
-    appName: z.string().describe("The name of the application."),
-    instanceCount: z.number().int().min(0).describe("The desired number of instances (0 to stop the app, if supported by underlying PaaS)."),
+    appName: zod_1.z.string().describe("The name of the application."),
+    instanceCount: zod_1.z.number().int().min(0).describe("The desired number of instances (0 to stop the app, if supported by underlying PaaS)."),
 }, async ({ appName, instanceCount }) => {
     try {
         // Step 1: Fetch existing app definition
@@ -284,8 +290,8 @@ server.tool("scaleApp", "Changes the number of running instances for an applicat
 });
 // --- Tool: enableAppSsl ---
 server.tool("enableAppSsl", "Enables SSL (HTTPS) for an application by attaching a custom domain and provisioning a certificate.", {
-    appName: z.string().describe("The name of the application."),
-    customDomain: z.string().describe("The custom domain to associate with the app (e.g., 'myapp.example.com')."),
+    appName: zod_1.z.string().describe("The name of the application."),
+    customDomain: zod_1.z.string().describe("The custom domain to associate with the app (e.g., 'myapp.example.com')."),
 }, async ({ appName, customDomain }) => {
     try {
         // CapRover API for enabling SSL / attaching custom domain is typically:
@@ -309,8 +315,8 @@ server.tool("enableAppSsl", "Enables SSL (HTTPS) for an application by attaching
 });
 // --- Tool: removeCustomDomain ---
 server.tool("removeCustomDomain", "Removes a custom domain from an application. This may also disable SSL if it's the last custom domain.", {
-    appName: z.string().describe("The name of the application."),
-    customDomain: z.string().describe("The custom domain to remove (e.g., 'myapp.example.com')."),
+    appName: zod_1.z.string().describe("The name of the application."),
+    customDomain: zod_1.z.string().describe("The custom domain to remove (e.g., 'myapp.example.com')."),
 }, async ({ appName, customDomain }) => {
     try {
         // CapRover API for removing a custom domain is typically:
@@ -338,8 +344,8 @@ server.tool("removeCustomDomain", "Removes a custom domain from an application. 
 });
 // --- Main function to run the server ---
 // Export main for potential programmatic start, but primarily for conditional execution
-export async function main() {
-    const transport = new StdioServerTransport();
+async function main() {
+    const transport = new stdio_1.StdioServerTransport();
     try {
         await server.connect(transport);
         console.error("Tyaprover MCP Server running on stdio. Ready to receive tool calls.");
@@ -352,10 +358,10 @@ export async function main() {
 // Ensure main only runs when this script is the main module
 // Convert current file path (import.meta.url) and process.argv[1] to comparable formats.
 // process.argv[1] might be relative or absolute. import.meta.url is a file URL.
-import { fileURLToPath } from 'url';
-import path from 'path';
-const currentFilePath = fileURLToPath(import.meta.url);
-const scriptPath = path.resolve(process.argv[1]);
+const url_1 = require("url");
+const path_1 = __importDefault(require("path"));
+const currentFilePath = (0, url_1.fileURLToPath)(import.meta.url);
+const scriptPath = path_1.default.resolve(process.argv[1]);
 if (currentFilePath === scriptPath) {
     main().catch((error) => {
         console.error("Fatal error in MCP server main():", error);
