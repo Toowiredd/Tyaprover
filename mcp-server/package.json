@@ -1,0 +1,28 @@
+{
+  "name": "tyaprover-mcp-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "MCP Server for controlling Tyaprover (CapRover) via Claude Code CLI.",
+  "main": "build/index.js",
+  "bin": {
+    "tyaprover-mcp-server": "./build/index.js"
+  },
+  "scripts": {
+    "build": "tsc && chmod +x ./build/index.js",
+       "start": "node ./build/index.js",
+       "test": "jest"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.4.0",
+    "zod": "^3.22.4",
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+       "@types/jest": "^29.5.12",
+    "@types/node": "^20.11.20",
+       "jest": "^29.7.0",
+       "ts-jest": "^29.1.2",
+    "typescript": "^5.3.3"
+  }
+}

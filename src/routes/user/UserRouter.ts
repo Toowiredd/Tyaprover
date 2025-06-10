@@ -10,6 +10,7 @@ import AppsRouter from './apps/AppsRouter'
 import OneClickAppRouter from './oneclick/OneClickAppRouter'
 import ProRouter from './pro/ProRouter'
 import ProjectsRouter from './ProjectsRouter'
+import ClaudeRouter from './claude/ClaudeRouter';
 import RegistriesRouter from './registeries/RegistriesRouter'
 import SystemRouter from './system/SystemRouter'
 import onFinished = require('on-finished')
@@ -135,5 +136,7 @@ router.use('/registries/', RegistriesRouter)
 router.use('/system/', SystemRouter)
 
 router.use('/pro/', ProRouter)
+
+router.use('/claude/', ClaudeRouter);
 
 export default router
