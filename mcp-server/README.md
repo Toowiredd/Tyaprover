@@ -116,6 +116,34 @@ The Tyaprover MCP server currently exposes the following tools (this list will g
     *   Description: Deploys a new application or updates an existing one.
     *   Inputs: `appName` (string), `imageName` (string), `instanceCount` (optional number), `environmentVariables` (optional array of key-value pairs), `portMappings` (optional array), `volumes` (optional array), etc.
     *   Output: Text confirmation.
+*   **`tyaprover/deleteApp`**:
+    *   Description: Deletes an application. This is a destructive operation.
+    *   Inputs: `appName` (string).
+    *   Output: Text confirmation.
+*   **`tyaprover/setAppEnvironmentVariables`**:
+    *   Description: Sets or updates environment variables for an application. This replaces all existing variables with the provided set.
+    *   Inputs:
+        *   `appName` (string)
+        *   `environmentVariables` (array of objects, each with `key` and `value` strings)
+    *   Output: Text confirmation.
+*   **`tyaprover/scaleApp`**:
+    *   Description: Changes the number of running instances for an application.
+    *   Inputs:
+        *   `appName` (string)
+        *   `instanceCount` (number, 0 to stop)
+    *   Output: Text confirmation.
+*   **`tyaprover/enableAppSsl`**:
+    *   Description: Enables SSL (HTTPS) for an application by attaching a custom domain.
+    *   Inputs:
+        *   `appName` (string)
+        *   `customDomain` (string)
+    *   Output: Text confirmation.
+*   **`tyaprover/removeCustomDomain`**:
+    *   Description: Removes a custom domain from an application.
+    *   Inputs:
+        *   `appName` (string)
+        *   `customDomain` (string)
+    *   Output: Text confirmation.
 
 *(More tools like `deleteApp`, `setAppEnvironmentVariables`, `scaleApp`, `enableAppSsl`, `removeCustomDomain` are planned).*
 
