@@ -1,13 +1,9 @@
-# DISABLED AUTO-RUN: Originally triggered on auto-triggers
-# Converted to manual execution only - 2025-10-18
-# Backup available at: publish_release.yml.backup
-name: Build and push the release image
+name: Build and push the edge image
 
 on:
-  workflow_dispatch:  # Manual trigger only
-#     push:
-#         branches:
-#             - release
+    push:
+        branches:
+            - master
 
 jobs:
     run-pre-checks:
@@ -33,6 +29,6 @@ jobs:
                   username: ${{ secrets.REGISTRY_USERNAME }}
                   password: ${{ secrets.REGISTRY_PASSWORD }}
             - uses: actions/checkout@v1
-            - name: Build and Push Release to DockerHub
+            - name: Build and Push Edge to DockerHub
               shell: bash
-              run: ./dev-scripts/build_and_push_release.sh
+              run: ./dev-scripts/build_and_push_edge.sh
