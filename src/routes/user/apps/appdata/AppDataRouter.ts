@@ -3,6 +3,7 @@ import ApiStatusCodes from '../../../../api/ApiStatusCodes'
 import BaseApi from '../../../../api/BaseApi'
 import InjectionExtractor from '../../../../injection/InjectionExtractor'
 import Logger from '../../../../utils/Logger'
+import { AuditOperations } from '../../../../middleware/AuditLogging'
 import multer = require('multer')
 
 const TEMP_UPLOAD = 'temp_upload/'
@@ -73,6 +74,7 @@ router.post('/:appName/', function (req, res, next) {
 router.post(
     '/:appName/',
     upload.single('sourceFile'),
+    AuditOperations.appDeploy(),
     function (req, res, next) {
         const serviceManager =
             InjectionExtractor.extractUserFromInjected(res).user.serviceManager

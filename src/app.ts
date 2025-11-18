@@ -25,6 +25,10 @@ import Utils from './utils/Utils'
 import requestTrackerMiddleware from './middleware/RequestTracker'
 import securityHeadersMiddleware from './middleware/SecurityHeaders'
 import { createAuthRateLimiter, createApiRateLimiter } from './middleware/RateLimiter'
+import { simpleCompression } from './middleware/Compression'
+import { structuredRequestLogger } from './middleware/StructuredLogger'
+import { apiTimeout } from './middleware/RequestTimeout'
+import { detailedHealthCheck, livenessProbe, readinessProbe } from './middleware/EnhancedHealthCheck'
 
 // import { NextFunction, Request, Response } from 'express'
 
@@ -40,6 +44,12 @@ app.use(requestTrackerMiddleware)
 
 // PRODUCTION IMPROVEMENT: Add security headers
 app.use(securityHeadersMiddleware)
+
+// PRODUCTION IMPROVEMENT: Add response compression (gzip)
+app.use(simpleCompression())
+
+// PRODUCTION IMPROVEMENT: Add structured logging with request context
+app.use(structuredRequestLogger)
 
 app.use(favicon(path.join(__dirname, '../public', 'favicon.ico')))
 app.use(
@@ -108,9 +118,15 @@ app.use(express.static(path.join(__dirname, '../dist-frontend')))
 
 app.use(express.static(path.join(__dirname, 'public')))
 
+// PRODUCTION IMPROVEMENT: Enhanced health check endpoints
 app.use(CaptainConstants.healthCheckEndPoint, function (req, res, next) {
     res.send(CaptainManager.get().getHealthCheckUuid())
 })
+
+// Kubernetes-style health probes
+app.use('/health', detailedHealthCheck())
+app.use('/health/live', livenessProbe())
+app.use('/health/ready', readinessProbe())
 
 //  ************  Beginning of reverse proxy 3rd party services  ****************************************
 
@@ -195,6 +211,9 @@ const API_PREFIX = '/api/'
 
 // PRODUCTION IMPROVEMENT: Add general API rate limiting (100 req/min)
 app.use(API_PREFIX + ':apiVersionFromRequest/', createApiRateLimiter())
+
+// PRODUCTION IMPROVEMENT: Add request timeout (30s for API)
+app.use(API_PREFIX + ':apiVersionFromRequest/', apiTimeout())
 
 app.use(API_PREFIX + ':apiVersionFromRequest/', function (req, res, next) {
     if (req.params.apiVersionFromRequest !== CaptainConstants.apiVersion) {

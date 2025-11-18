@@ -10,12 +10,13 @@ import {
 } from '../../user/events/ICapRoverEvent'
 import CaptainConstants from '../../utils/CaptainConstants'
 import CircularQueue from '../../utils/CircularQueue'
+import { AuditOperations } from '../../middleware/AuditLogging'
 
 const router = express.Router()
 
 const failedLoginCircularTimestamps = new CircularQueue<number>(5)
 
-router.post('/', function (req, res, next) {
+router.post('/', AuditOperations.login(), function (req, res, next) {
     const password = `${req.body.password || ''}`
     const otpToken = `${req.body.otpToken || ''}`
 

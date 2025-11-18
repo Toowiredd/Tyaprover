@@ -9,6 +9,7 @@ import { AnyError } from './models/OtherTypes'
 import CaptainConstants from './utils/CaptainConstants'
 import * as CaptainInstaller from './utils/CaptainInstaller'
 import EnvVars from './utils/EnvVars'
+import gracefulShutdown from './utils/GracefulShutdown'
 import debugModule = require('debug')
 
 const debug = debugModule('caprover:server')
@@ -46,6 +47,20 @@ function startServer() {
     server.listen(port)
     server.on('error', onError)
     server.on('listening', onListening)
+
+    // PRODUCTION IMPROVEMENT: Initialize graceful shutdown
+    gracefulShutdown.init(server, 30000) // 30 second timeout
+
+    // Register cleanup handlers
+    gracefulShutdown.onShutdown('close-connections', async () => {
+        console.log('Closing active connections...')
+        // Connections will be closed by server.close()
+    })
+
+    gracefulShutdown.onShutdown('cleanup-resources', async () => {
+        console.log('Cleaning up resources...')
+        // Add any cleanup logic here (e.g., close DB connections, flush logs)
+    })
 
     /**
      * Event listener for HTTP server "error" event.

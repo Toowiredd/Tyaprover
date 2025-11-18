@@ -9,6 +9,7 @@ import CaptainManager from '../../../../user/system/CaptainManager'
 import CaptainConstants from '../../../../utils/CaptainConstants'
 import Logger from '../../../../utils/Logger'
 import Utils from '../../../../utils/Utils'
+import { AuditOperations } from '../../../../middleware/AuditLogging'
 
 const router = express.Router()
 
@@ -101,7 +102,7 @@ router.get('/', function (req, res, next) {
         .catch(ApiStatusCodes.createCatcher(res))
 })
 
-router.post('/enablebasedomainssl/', function (req, res, next) {
+router.post('/enablebasedomainssl/', AuditOperations.sslEnable(), function (req, res, next) {
     const serviceManager =
         InjectionExtractor.extractUserFromInjected(res).user.serviceManager
 
@@ -119,7 +120,7 @@ router.post('/enablebasedomainssl/', function (req, res, next) {
         .catch(ApiStatusCodes.createCatcher(res))
 })
 
-router.post('/customdomain/', function (req, res, next) {
+router.post('/customdomain/', AuditOperations.domainAdd(), function (req, res, next) {
     const serviceManager =
         InjectionExtractor.extractUserFromInjected(res).user.serviceManager
 
@@ -141,7 +142,7 @@ router.post('/customdomain/', function (req, res, next) {
         .catch(ApiStatusCodes.createCatcher(res))
 })
 
-router.post('/removecustomdomain/', function (req, res, next) {
+router.post('/removecustomdomain/', AuditOperations.domainRemove(), function (req, res, next) {
     const serviceManager =
         InjectionExtractor.extractUserFromInjected(res).user.serviceManager
 
@@ -182,7 +183,7 @@ router.post('/enablecustomdomainssl/', function (req, res, next) {
         .catch(ApiStatusCodes.createCatcher(res))
 })
 
-router.post('/register/', function (req, res, next) {
+router.post('/register/', AuditOperations.appCreate(), function (req, res, next) {
     const dataStore =
         InjectionExtractor.extractUserFromInjected(res).user.dataStore
     const serviceManager =
@@ -303,7 +304,7 @@ router.post('/register/', function (req, res, next) {
         .catch(ApiStatusCodes.createCatcher(res))
 })
 
-router.post('/delete/', function (req, res, next) {
+router.post('/delete/', AuditOperations.appDelete(), function (req, res, next) {
     const serviceManager =
         InjectionExtractor.extractUserFromInjected(res).user.serviceManager
 
@@ -385,7 +386,7 @@ router.post('/rename/', function (req, res, next) {
         .catch(ApiStatusCodes.createCatcher(res))
 })
 
-router.post('/update/', function (req, res, next) {
+router.post('/update/', AuditOperations.appUpdate(), function (req, res, next) {
     const serviceManager =
         InjectionExtractor.extractUserFromInjected(res).user.serviceManager
 
