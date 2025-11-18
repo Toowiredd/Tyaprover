@@ -12,6 +12,9 @@ import Utils from '../../../../utils/Utils'
 
 const router = express.Router()
 
+// BUG FIX #1: Track apps currently being updated to prevent race conditions
+const appsBeingUpdated = new Set<string>()
+
 // unused images
 router.get('/unusedImages', function (req, res, next) {
     return Promise.resolve()
@@ -191,11 +194,28 @@ router.post('/register/', function (req, res, next) {
     const isDetachedBuild = !!req.query.detached
 
     let appCreated = false
+    let serviceCreated = false
 
     Logger.d(`Registering app started: ${appName}`)
 
     return Promise.resolve()
         .then(function () {
+            // BUG FIX #4: Validate app name is not empty and contains valid characters
+            if (!appName || appName.trim().length === 0) {
+                throw ApiStatusCodes.createError(
+                    ApiStatusCodes.STATUS_ERROR_BAD_NAME,
+                    'App name is required and cannot be empty'
+                )
+            }
+
+            // Validate app name format (alphanumeric, dash, underscore only)
+            if (!/^[a-z0-9-_]+$/i.test(appName)) {
+                throw ApiStatusCodes.createError(
+                    ApiStatusCodes.STATUS_ERROR_BAD_NAME,
+                    'App name can only contain letters, numbers, dashes, and underscores'
+                )
+            }
+
             if (projectId) {
                 return dataStore.getProjectsDataStore().getProject(projectId)
                 // if project is not found, it will throw an error
@@ -224,8 +244,12 @@ router.post('/register/', function (req, res, next) {
                         gitHash: '',
                     },
                 })
+                .then(function () {
+                    serviceCreated = true
+                })
                 .catch(function (error) {
                     Logger.e(error)
+                    throw error // BUG FIX #3: Propagate error to trigger rollback
                 })
 
             if (!isDetachedBuild) return promiseToIgnore
@@ -243,10 +267,32 @@ router.post('/register/', function (req, res, next) {
                 })
             }
 
+            // BUG FIX #3: Complete rollback - remove both datastore and Docker service
             if (appCreated) {
-                return dataStore
-                    .getAppsDataStore()
-                    .deleteAppDefinition(appName)
+                const promises: Promise<any>[] = []
+
+                // Remove from datastore
+                promises.push(
+                    dataStore
+                        .getAppsDataStore()
+                        .deleteAppDefinition(appName)
+                        .catch(function (err) {
+                            Logger.e(`Failed to delete app definition during rollback: ${err}`)
+                        })
+                )
+
+                // Remove Docker service if it was created
+                if (serviceCreated) {
+                    promises.push(
+                        serviceManager
+                            .removeApps([appName])
+                            .catch(function (err) {
+                                Logger.e(`Failed to remove Docker service during rollback: ${err}`)
+                            })
+                    )
+                }
+
+                return Promise.all(promises)
                     .then(function () {
                         return createRejectionPromise()
                     })
@@ -275,6 +321,16 @@ router.post('/delete/', function (req, res, next) {
                     ApiStatusCodes.ILLEGAL_OPERATION,
                     'Either appName or appNames should be provided'
                 )
+            }
+
+            // BUG FIX #9: Check if any app is currently building before deletion
+            for (const app of appsToDelete) {
+                if (serviceManager.isAppBuilding(app)) {
+                    throw ApiStatusCodes.createError(
+                        ApiStatusCodes.ILLEGAL_OPERATION,
+                        `Cannot delete app '${app}' while a build is in progress. Please wait for the build to complete or cancel it first.`
+                    )
+                }
             }
         })
         .then(function () {
@@ -360,6 +416,61 @@ router.post('/update/', function (req, res, next) {
         | undefined
     const description = req.body.description || ''
 
+    // BUG FIX #4: Validate instance count
+    const instanceCountNum = Number(instanceCount)
+    if (isNaN(instanceCountNum) || instanceCountNum < 0) {
+        res.send(
+            new BaseApi(
+                ApiStatusCodes.ILLEGAL_PARAMETER,
+                'Instance count must be a non-negative number'
+            )
+        )
+        return
+    }
+    if (instanceCountNum > 100) {
+        res.send(
+            new BaseApi(
+                ApiStatusCodes.ILLEGAL_PARAMETER,
+                'Instance count cannot exceed 100. Please contact support if you need more instances.'
+            )
+        )
+        return
+    }
+
+    // BUG FIX #5: Validate environment variables structure
+    if (envVars && Array.isArray(envVars)) {
+        for (let i = 0; i < envVars.length; i++) {
+            const envVar = envVars[i]
+            if (!envVar || typeof envVar !== 'object') {
+                res.send(
+                    new BaseApi(
+                        ApiStatusCodes.ILLEGAL_PARAMETER,
+                        `Environment variable at index ${i} must be an object with 'key' and 'value' properties`
+                    )
+                )
+                return
+            }
+            if (!envVar.key || typeof envVar.key !== 'string') {
+                res.send(
+                    new BaseApi(
+                        ApiStatusCodes.ILLEGAL_PARAMETER,
+                        `Environment variable at index ${i} is missing required 'key' property or key is not a string`
+                    )
+                )
+                return
+            }
+            if (envVar.value === undefined || envVar.value === null) {
+                res.send(
+                    new BaseApi(
+                        ApiStatusCodes.ILLEGAL_PARAMETER,
+                        `Environment variable at index ${i} (key: '${envVar.key}') is missing required 'value' property`
+                    )
+                )
+                return
+            }
+        }
+    }
+
     if (!appDeployTokenConfig) {
         appDeployTokenConfig = { enabled: false }
     } else {
@@ -383,25 +494,47 @@ router.post('/update/', function (req, res, next) {
         repoInfo.branch = repoInfo.branch.trim()
     }
 
+    // BUG FIX #7: Improved Git webhook validation with specific error messages
     if (
-        (repoInfo.branch ||
-            repoInfo.user ||
-            repoInfo.repo ||
-            repoInfo.password ||
-            repoInfo.sshKey) &&
-        (!repoInfo.branch ||
-            !repoInfo.repo ||
-            (!repoInfo.sshKey && !repoInfo.user && !repoInfo.password) ||
-            (repoInfo.password && !repoInfo.user) ||
-            (repoInfo.user && !repoInfo.password))
+        repoInfo.branch ||
+        repoInfo.user ||
+        repoInfo.repo ||
+        repoInfo.password ||
+        repoInfo.sshKey
     ) {
-        res.send(
-            new BaseApi(
-                ApiStatusCodes.ILLEGAL_PARAMETER,
-                'Missing required Github/BitBucket/Gitlab field'
+        // At least one Git field is provided, validate all required fields
+        const missingFields: string[] = []
+
+        if (!repoInfo.branch) {
+            missingFields.push('branch')
+        }
+        if (!repoInfo.repo) {
+            missingFields.push('repo')
+        }
+
+        // Need either SSH key OR username+password
+        const hasSshKey = !!repoInfo.sshKey
+        const hasUserPass = !!repoInfo.user && !!repoInfo.password
+
+        if (!hasSshKey && !hasUserPass) {
+            if (!repoInfo.sshKey && !repoInfo.user && !repoInfo.password) {
+                missingFields.push('authentication (either sshKey OR user+password)')
+            } else if (repoInfo.user && !repoInfo.password) {
+                missingFields.push('password (user provided without password)')
+            } else if (repoInfo.password && !repoInfo.user) {
+                missingFields.push('user (password provided without user)')
+            }
+        }
+
+        if (missingFields.length > 0) {
+            res.send(
+                new BaseApi(
+                    ApiStatusCodes.ILLEGAL_PARAMETER,
+                    `Missing required Git fields: ${missingFields.join(', ')}`
+                )
             )
-        )
-        return
+            return
+        }
     }
 
     if (
@@ -428,7 +561,21 @@ router.post('/update/', function (req, res, next) {
         repoInfo.sshKey = repoInfo.sshKey + '\n'
     }
 
+    // BUG FIX #1: Check if app is already being updated
+    if (appsBeingUpdated.has(appName)) {
+        res.send(
+            new BaseApi(
+                ApiStatusCodes.ILLEGAL_OPERATION,
+                `App '${appName}' is currently being updated by another request. Please wait for the previous update to complete.`
+            )
+        )
+        return
+    }
+
     Logger.d(`Updating app started: ${appName}`)
+
+    // Mark app as being updated
+    appsBeingUpdated.add(appName)
 
     return serviceManager
         .updateAppDefinition(
@@ -456,6 +603,8 @@ router.post('/update/', function (req, res, next) {
         )
         .then(function () {
             Logger.d(`AppName is updated: ${appName}`)
+            // BUG FIX #1: Release the lock
+            appsBeingUpdated.delete(appName)
             res.send(
                 new BaseApi(
                     ApiStatusCodes.STATUS_OK,
@@ -463,7 +612,11 @@ router.post('/update/', function (req, res, next) {
                 )
             )
         })
-        .catch(ApiStatusCodes.createCatcher(res))
+        .catch(function (error) {
+            // BUG FIX #1: Release the lock on error
+            appsBeingUpdated.delete(appName)
+            return ApiStatusCodes.createCatcher(res)(error)
+        })
 })
 
 export default router

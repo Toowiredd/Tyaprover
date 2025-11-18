@@ -143,10 +143,12 @@ class ServiceManager {
                 return existingPromise
             }
 
+            // BUG FIX #8: Add queue position visibility
+            const queuePosition = self.queuedBuilds.length + 1
             self.buildLogsManager
                 .getAppBuildLogs(appName)
                 .log(
-                    `An active build (${activeBuildAppName}) is in progress. This build is queued...`
+                    `An active build (${activeBuildAppName}) is in progress. This build is queued at position ${queuePosition}...`
                 )
 
             const promiseToSave: QueuedPromise = {

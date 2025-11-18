@@ -39,8 +39,8 @@ router.post('/assistant', (req: Request, res: Response, next: NextFunction) => {
     claudeProcess.on('error', (error) => {
         Logger.e(`ClaudeRouter: Failed to start claude CLI: ${error.message}`);
         if (!res.headersSent) {
-            // Use 503 Service Unavailable if the service itself (Claude CLI) can't be reached/started
-            return res.status(503).send(new BaseApi(ApiStatusCodes.STATUS_ERROR_GENERIC, `Failed to start Claude CLI: ${error.message}`));
+            // BUG FIX #6: Use consistent error handling pattern (HTTP 200 with error status code)
+            return res.send(new BaseApi(ApiStatusCodes.STATUS_ERROR_GENERIC, `Failed to start Claude CLI: ${error.message}. Ensure Claude CLI is installed and accessible.`));
         }
     });
 
@@ -52,9 +52,9 @@ router.post('/assistant', (req: Request, res: Response, next: NextFunction) => {
 
         if (code !== 0) {
             Logger.e(`ClaudeRouter: claude CLI exited with code ${code}. Stderr: ${stderrData}. Stdout: ${stdoutData}`);
-            // Prefer stderr if available for the error message
+            // BUG FIX #6: Use consistent error handling (HTTP 200 with error status code)
             const errorMessage = stderrData.trim() || `Claude CLI exited with code ${code}.`;
-            return res.status(500).send(new BaseApi(ApiStatusCodes.STATUS_ERROR_GENERIC, errorMessage));
+            return res.send(new BaseApi(ApiStatusCodes.STATUS_ERROR_GENERIC, errorMessage));
         }
 
         // Exit code is 0
@@ -64,7 +64,7 @@ router.post('/assistant', (req: Request, res: Response, next: NextFunction) => {
             const message = stderrData.trim() ? `Claude CLI produced no output. Stderr: ${stderrData}` : 'Claude CLI produced no output.';
             const response = new BaseApi(ApiStatusCodes.STATUS_OK_PARTIALLY, message);
             response.data = { rawOutput: stderrData.trim() };
-            return res.status(200).send(response);
+            return res.send(response);
         }
 
         try {
@@ -81,7 +81,7 @@ router.post('/assistant', (req: Request, res: Response, next: NextFunction) => {
             // Send the raw output if parsing fails, as it might still be useful, but indicate it's not the expected JSON.
             const response = new BaseApi(ApiStatusCodes.STATUS_OK_PARTIALLY, 'Received non-JSON or malformed JSON response from Claude.');
             response.data = { rawOutput: stdoutData, stderrOutput: stderrData.trim() };
-            res.status(200).send(response);
+            res.send(response);
         }
     });
 });
