@@ -22,6 +22,7 @@ import Logger from './utils/Logger'
 import Utils from './utils/Utils'
 
 // PRODUCTION IMPROVEMENTS: Import middleware cannibalized from open source patterns
+// Phase 3 - Core & Advanced Production Middleware
 import requestTrackerMiddleware from './middleware/RequestTracker'
 import securityHeadersMiddleware from './middleware/SecurityHeaders'
 import { createAuthRateLimiter, createApiRateLimiter } from './middleware/RateLimiter'
@@ -29,6 +30,11 @@ import { simpleCompression } from './middleware/Compression'
 import { structuredRequestLogger } from './middleware/StructuredLogger'
 import { apiTimeout } from './middleware/RequestTimeout'
 import { detailedHealthCheck, livenessProbe, readinessProbe } from './middleware/EnhancedHealthCheck'
+
+// Phase 4 - Observability & Resilience Features
+import prometheusMiddleware, { metricsEndpoint } from './middleware/PrometheusMetrics'
+import distributedTracingMiddleware from './middleware/DistributedTracing'
+import responseCache from './middleware/CacheManager'
 
 // import { NextFunction, Request, Response } from 'express'
 
@@ -38,6 +44,15 @@ const app = express()
 
 app.set('views', path.join(__dirname, '../views'))
 app.set('view engine', 'ejs')
+
+// ===== PHASE 3 & 4: PRODUCTION IMPROVEMENTS =====
+// All middleware cannibalized from open source patterns (zero external dependencies)
+
+// PRODUCTION IMPROVEMENT: Distributed tracing (OpenTelemetry-compatible)
+app.use(distributedTracingMiddleware({ serviceName: 'tyaprover', sampleRate: 1.0 }))
+
+// PRODUCTION IMPROVEMENT: Prometheus metrics collection
+app.use(prometheusMiddleware)
 
 // PRODUCTION IMPROVEMENT: Add request tracking (correlation IDs and timing)
 app.use(requestTrackerMiddleware)
@@ -127,6 +142,9 @@ app.use(CaptainConstants.healthCheckEndPoint, function (req, res, next) {
 app.use('/health', detailedHealthCheck())
 app.use('/health/live', livenessProbe())
 app.use('/health/ready', readinessProbe())
+
+// PHASE 4: Prometheus metrics endpoint for monitoring
+app.use('/metrics', metricsEndpoint)
 
 //  ************  Beginning of reverse proxy 3rd party services  ****************************************
 
@@ -255,6 +273,8 @@ app.use(
     API_PREFIX + CaptainConstants.apiVersion + '/downloads/',
     DownloadRouter
 )
+// PHASE 4: Add response caching for public theme endpoint (5 min TTL)
+app.use(API_PREFIX + CaptainConstants.apiVersion + '/theme/', responseCache({ ttl: 300000 }))
 app.use(API_PREFIX + CaptainConstants.apiVersion + '/theme/', ThemePublicRouter)
 
 // secured end points

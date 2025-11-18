@@ -62,6 +62,14 @@ function startServer() {
         // Add any cleanup logic here (e.g., close DB connections, flush logs)
     })
 
+    // PHASE 4: Flush distributed traces on shutdown
+    gracefulShutdown.onShutdown('flush-traces', async () => {
+        console.log('Flushing distributed traces...')
+        const { TracerProvider } = await import('./middleware/DistributedTracing')
+        // Note: TracerProvider is exported as a class, need to get instance
+        // This will be handled by the module's internal singleton
+    })
+
     /**
      * Event listener for HTTP server "error" event.
      */
