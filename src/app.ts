@@ -21,6 +21,11 @@ import CaptainConstants from './utils/CaptainConstants'
 import Logger from './utils/Logger'
 import Utils from './utils/Utils'
 
+// PRODUCTION IMPROVEMENTS: Import middleware cannibalized from open source patterns
+import requestTrackerMiddleware from './middleware/RequestTracker'
+import securityHeadersMiddleware from './middleware/SecurityHeaders'
+import { createAuthRateLimiter, createApiRateLimiter } from './middleware/RateLimiter'
+
 // import { NextFunction, Request, Response } from 'express'
 
 const httpProxy = httpProxyImport.createProxyServer({})
@@ -29,6 +34,12 @@ const app = express()
 
 app.set('views', path.join(__dirname, '../views'))
 app.set('view engine', 'ejs')
+
+// PRODUCTION IMPROVEMENT: Add request tracking (correlation IDs and timing)
+app.use(requestTrackerMiddleware)
+
+// PRODUCTION IMPROVEMENT: Add security headers
+app.use(securityHeadersMiddleware)
 
 app.use(favicon(path.join(__dirname, '../public', 'favicon.ico')))
 app.use(
@@ -182,6 +193,9 @@ app.use(CaptainConstants.netDataRelativePath, function (req, res, next) {
 
 const API_PREFIX = '/api/'
 
+// PRODUCTION IMPROVEMENT: Add general API rate limiting (100 req/min)
+app.use(API_PREFIX + ':apiVersionFromRequest/', createApiRateLimiter())
+
 app.use(API_PREFIX + ':apiVersionFromRequest/', function (req, res, next) {
     if (req.params.apiVersionFromRequest !== CaptainConstants.apiVersion) {
         res.send(
@@ -215,6 +229,8 @@ app.use(API_PREFIX + ':apiVersionFromRequest/', function (req, res, next) {
 })
 
 // unsecured end points:
+// PRODUCTION IMPROVEMENT: Add strict rate limiting to login (5 failed attempts per 15min)
+app.use(API_PREFIX + CaptainConstants.apiVersion + '/login/', createAuthRateLimiter())
 app.use(API_PREFIX + CaptainConstants.apiVersion + '/login/', LoginRouter)
 app.use(
     API_PREFIX + CaptainConstants.apiVersion + '/downloads/',
