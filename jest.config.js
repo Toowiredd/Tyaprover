@@ -7,7 +7,7 @@ module.exports = {
         "^.+\\.ts?$": "ts-jest",
     },
     testRegex: "(/tests/.*|(\\.|/)(test|spec))\\.(jsx?|tsx?|ts?|js?)$",
-    testPathIgnorePatterns: ["/node_modules/"],
+    testPathIgnorePatterns: ["/node_modules/", "/mcp-server/"],
     moduleFileExtensions: ["ts", "tsx", "js", "jsx", "json", "node"],
     collectCoverage: true,
 };

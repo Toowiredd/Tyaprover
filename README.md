@@ -106,17 +106,18 @@ docker run -it --rm -v /var/run/docker.sock:/var/run/docker.sock tyaprover/tyapr
 
 ## 📁 Project Structure
 
+For a detailed breakdown of the directory structure, see [docs/DIRECTORY_STRUCTURE.md](./docs/DIRECTORY_STRUCTURE.md).
+
 ```
 Tyaprover/
 ├── mcp-server/              # MCP server for AI integration
 │   ├── src/                 # TypeScript source code
-│   ├── build/               # Compiled JavaScript
-│   ├── config.json          # Server configuration
 │   └── README.md            # MCP server documentation
-├── src/                     # Main Tyaprover application
-├── docker-compose.yml       # Development environment
-├── mcp-config-tyaprover.json # Claude CLI MCP configuration
-└── docs/                    # Documentation
+├── src/                     # Main Tyaprover application source
+├── docs/                    # Documentation
+├── dockerfiles/             # Base Dockerfiles
+├── deploy-tyaprover.sh      # Deployment script
+└── mcp-config-tyaprover.json # Claude CLI MCP configuration
 ```
 
 ## 🛠 Development
@@ -156,10 +157,9 @@ claude "deploy a test app called hello-world"
 
 ## 📖 Documentation
 
-- **[MCP Server Setup](./mcp-server/SETUP.md)** - Detailed MCP server configuration
-- **[API Documentation](./mcp-server/README.md)** - Available AI commands and tools
+- **[Directory Structure](./docs/DIRECTORY_STRUCTURE.md)** - Comprehensive map of the codebase
+- **[MCP Server Documentation](./mcp-server/README.md)** - Setup, API commands, and tools for AI integration
 - **[Deployment Guide](./deploy-tyaprover.sh)** - Production deployment instructions
-- **[Configuration Reference](./mcp-server/config.json)** - All configuration options
 
 ## 🤝 Contributing
 
