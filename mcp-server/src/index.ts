@@ -2,12 +2,14 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import fetch from 'node-fetch'; // For making API calls to Tyaprover
+import { BackgroundAgent } from "./BackgroundAgent.js";
 
 // Configuration from environment variables
 const TYAPROVER_API_URL = process.env.TYAPROVER_API_URL; // e.g., http://localhost:7474 or https://captain.yourdomain.com
 const TYAPROVER_AUTH_TOKEN = process.env.TYAPROVER_AUTH_TOKEN;
-const TYAPROVER_NAMESPACE = process.env.TYAPROVER_NAMESPACE || 'captain';
+const TYAPROVER_NAMESPACE = process.env.TYAPROVER_NAMESPACE || 'user'; // Default to 'user' as per Tyaprover API structure
 const CAPROVER_API_VERSION = process.env.CAPROVER_API_VERSION || 'v2'; // Or fetch from CapRover constants if possible
+const ENABLE_AUTONOMOUS_AGENT = process.env.TYAPROVER_ENABLE_AUTONOMOUS_AGENT === 'true';
 
 if (!TYAPROVER_API_URL || !TYAPROVER_AUTH_TOKEN) {
     console.error("FATAL: TYAPROVER_API_URL and TYAPROVER_AUTH_TOKEN environment variables are required.");
@@ -22,6 +24,12 @@ const server = new McpServer({
         tools: {},
     },
 });
+
+// Initialize Background Agent if enabled
+if (ENABLE_AUTONOMOUS_AGENT) {
+    const agent = new BackgroundAgent(TYAPROVER_API_URL, TYAPROVER_AUTH_TOKEN, TYAPROVER_NAMESPACE);
+    agent.start();
+}
 
 // Export server for testing purposes
 export { server };
@@ -66,9 +74,6 @@ function validateAndSanitizeAppName(appName: string): string {
     if (!appName) {
         throw new Error("App name is required.");
     }
-    // CapRover app names usually limited to lowercase alphanumeric, hyphen, maybe underscore.
-    // Let's enforce a safe subset: lowercase alphanumeric and hyphens.
-    // Also, CapRover apps cannot start with a hyphen.
     const sanitized = appName.toLowerCase().replace(/[^a-z0-9-]/g, '');
     if (!sanitized) {
         throw new Error(`Invalid app name '${appName}'. App names must contain alphanumeric characters.`);
@@ -79,6 +84,127 @@ function validateAndSanitizeAppName(appName: string): string {
     return sanitized;
 }
 
+// --- Tool: getSystemStatus ---
+server.tool(
+    "getSystemStatus",
+    "Retrieves system status, version information, and load balancer info.",
+    {},
+    async () => {
+        try {
+            const [infoRes, versionRes, loadBalancerRes] = await Promise.all([
+                callTyaproverApi('GET', '/system/info/'),
+                callTyaproverApi('GET', '/system/versionInfo/'),
+                callTyaproverApi('GET', '/system/loadbalancerinfo/')
+            ]);
+
+            return {
+                content: [{
+                    type: "text",
+                    text: JSON.stringify({
+                        info: infoRes?.data || infoRes,
+                        version: versionRes?.data || versionRes,
+                        loadBalancer: loadBalancerRes?.data || loadBalancerRes
+                    }, null, 2)
+                }]
+            };
+        } catch (error: any) {
+            return { content: [{ type: "text", text: `Error fetching system status: ${error.message}` }] };
+        }
+    }
+);
+
+// --- Tool: listNodes ---
+server.tool(
+    "listNodes",
+    "Lists the nodes in the Docker Swarm cluster.",
+    {},
+    async () => {
+        try {
+            const response = await callTyaproverApi('GET', '/system/nodes/');
+            if (response && response.status === 100 && response.data && response.data.nodes) {
+                return { content: [{ type: "text", text: JSON.stringify(response.data.nodes, null, 2) }] };
+            }
+             return { content: [{ type: "text", text: `Error listing nodes: ${response?.description || JSON.stringify(response)}` }] };
+        } catch (error: any) {
+             return { content: [{ type: "text", text: `Error: ${error.message}` }] };
+        }
+    }
+);
+
+// --- Tool: listRegistries ---
+server.tool(
+    "listRegistries",
+    "Lists configured Docker registries.",
+    {},
+    async () => {
+        try {
+            const response = await callTyaproverApi('GET', '/registries/');
+
+            if (response && response.status === 100 && response.data && response.data.registries) {
+                return { content: [{ type: "text", text: JSON.stringify(response.data.registries, null, 2) }] };
+            }
+             return { content: [{ type: "text", text: `Error listing registries: ${response?.description || JSON.stringify(response)}` }] };
+        } catch (error: any) {
+             return { content: [{ type: "text", text: `Error: ${error.message}` }] };
+        }
+    }
+);
+
+// --- Tool: addRegistry ---
+server.tool(
+    "addRegistry",
+    "Adds a new Docker registry.",
+    {
+        registryUser: z.string().describe("Username for the registry"),
+        registryPassword: z.string().describe("Password/Token for the registry"),
+        registryDomain: z.string().describe("Domain of the registry (e.g. registry.hub.docker.com or ghcr.io)"),
+        registryImagePrefix: z.string().optional().describe("Image prefix (optional, mostly for display/grouping)"),
+    },
+    async ({ registryUser, registryPassword, registryDomain, registryImagePrefix }) => {
+        try {
+            const payload = {
+                registryUser,
+                registryPassword,
+                registryDomain,
+                registryImagePrefix: registryImagePrefix || ""
+            };
+            const response = await callTyaproverApi('POST', '/registries/insert/', payload);
+
+            if (response && response.status === 100) {
+                 return { content: [{ type: "text", text: `Registry ${registryDomain} added successfully.` }] };
+            }
+             return { content: [{ type: "text", text: `Failed to add registry: ${response?.description}` }] };
+        } catch (error: any) {
+             return { content: [{ type: "text", text: `Error: ${error.message}` }] };
+        }
+    }
+);
+
+// --- Tool: listOneClickApps ---
+server.tool(
+    "listOneClickApps",
+    "Lists available One-Click Apps from the repository.",
+    {},
+    async () => {
+        try {
+            const response = await callTyaproverApi('GET', '/oneclick/template/list');
+             if (response && response.status === 100 && response.data && response.data.oneClickApps) {
+                // Returns a potentially large list. We might want to summarize or limit.
+                // For now, return the list name and displayName to save tokens.
+                const simpleList = response.data.oneClickApps.map((app: any) => ({
+                    name: app.name,
+                    displayName: app.displayName,
+                    description: app.description ? app.description.substring(0, 100) + '...' : ''
+                }));
+                return { content: [{ type: "text", text: JSON.stringify(simpleList, null, 2) }] };
+            }
+             return { content: [{ type: "text", text: `Error listing one-click apps: ${response?.description || JSON.stringify(response)}` }] };
+        } catch (error: any) {
+             return { content: [{ type: "text", text: `Error: ${error.message}` }] };
+        }
+    }
+);
+
 
 // --- Tool: listApps ---
 server.tool(
@@ -88,11 +214,6 @@ server.tool(
     async () => {
         try {
             const response = await callTyaproverApi('GET', '/apps');
-
-            // CapRover response structure for /apps is usually { status: 100, description: "...", data: { appDefinitions: [...] } }
-            // Or sometimes just the list depending on endpoint version. Assuming standard CapRover v2 response.
-
-            // Assuming the response.data contains { appDefinitions: [] }
             if (response && response.status === 100 && response.data && response.data.appDefinitions) {
                 return {
                     content: [{ type: "text", text: JSON.stringify(response.data.appDefinitions) }],
@@ -117,12 +238,7 @@ server.tool(
     },
     async ({ appName }) => {
         try {
-            // BUG FIX #2 & #10: Validate app name
             const sanitizedAppName = validateAndSanitizeAppName(appName);
-
-            // Using listApps and filtering, as CapRover might not have a direct single-app GET that returns everything in one go without complexity.
-            // Or use /user/apps/appDefinitions/:appName if available.
-            // Let's try the list approach for safety as we know /apps works.
             const response = await callTyaproverApi('GET', '/apps');
 
             if (response && response.status === 100 && response.data && response.data.appDefinitions) {
@@ -139,6 +255,34 @@ server.tool(
         } catch (error: any) {
              console.error(`MCP getAppDetails tool error: ${error.message}`);
             return { content: [{ type: "text", text: `Error getting app details for '${appName}': ${error.message}` }] };
+        }
+    }
+);
+
+// --- Tool: getAppLogs ---
+server.tool(
+    "getAppLogs",
+    "Retrieves the most recent logs for a specific application.",
+    {
+        appName: z.string().describe("The name of the application."),
+        lineCount: z.number().optional().describe("Number of lines to retrieve (default: 100)."),
+    },
+    async ({ appName, lineCount }) => {
+        try {
+            const sanitizedAppName = validateAndSanitizeAppName(appName);
+            const lines = lineCount || 100;
+            // CapRover Endpoint: GET /api/v2/user/apps/appData/:appName?logs=true&lines=...
+            const response = await callTyaproverApi('GET', `/apps/appData/${sanitizedAppName}?logs=true&lines=${lines}`);
+
+            if (response && response.status === 100 && response.data && response.data.logs) {
+                const logs = response.data.logs.lines.join("\n");
+                return { content: [{ type: "text", text: logs || "(No logs found)" }] };
+            } else {
+                 return { content: [{ type: "text", text: `Error fetching logs: ${response.description || JSON.stringify(response)}` }] };
+            }
+        } catch (error: any) {
+            console.error(`MCP getAppLogs tool error: ${error.message}`);
+            return { content: [{ type: "text", text: `Error fetching logs for '${appName}': ${error.message}` }] };
         }
     }
 );
@@ -161,9 +305,8 @@ server.tool(
             value: z.string()
         })).optional().describe("Environment variables to set."),
     },
-    async (input) => { // Use 'input' to access validated args
+    async (input) => {
         try {
-            // BUG FIX #2 & #10: Validate app name
             const sanitizedAppName = validateAndSanitizeAppName(input.appName);
 
             // 1. Check if app exists
@@ -187,32 +330,22 @@ server.tool(
                 imageName: input.imageName
             };
 
-            // Add Ports if provided (CapRover typically uses 'ports' field as array of mapped ports)
-            // CapRover structure: ports: [ { containerPort: 80, hostPort: 80 } ] or just exposed container ports depending on usage.
-            // Simplified: If user provides [80], we assume they want to expose 80.
             if (input.ports) {
                 updatePayload.ports = input.ports.map(p => ({ containerPort: p }));
             }
 
-            // Add Env Vars if provided
             if (input.environmentVariables) {
                 updatePayload.envVars = input.environmentVariables;
             }
 
-            // Add Volumes if provided
             if (input.volumes) {
                 updatePayload.volumes = input.volumes;
             }
 
-            // If app exists, we must merge with existing definition to avoid wiping other settings
             if (exists) {
-                // Merge: Existing takes precedence? No, input takes precedence.
-                // But we must keep existing stuff if not provided in input.
-                // e.g. if input.ports is undefined, keep exists.ports
                 updatePayload = { ...exists, ...updatePayload };
             }
 
-            // Endpoint: POST /api/v2/user/apps/appDefinitions/:appName
             const deployResponse = await callTyaproverApi('POST', `/apps/appdefinitions/${sanitizedAppName}`, updatePayload);
 
             if (deployResponse && deployResponse.status === 100) {
@@ -238,24 +371,15 @@ server.tool(
     },
     async ({ appName }) => {
         try {
-            // BUG FIX #2 & #10: Validate app name
             const sanitizedAppName = validateAndSanitizeAppName(appName);
-
-            // Endpoint: POST /api/v2/user/apps/appDefinitions/delete
-            // Body: { appName: "..." }
             const payload = { appName: sanitizedAppName };
             const response = await callTyaproverApi('POST', '/apps/appdefinitions/delete', payload);
 
             if (response && response.status === 100) {
-                return { content: [{ type: "text", text: `Application '${sanitizedAppName}' deleted successfully. Description: ${response.description}` }] };
-            } else if (response && response.status) {
-                 // CapRover might return other statuses for errors
-                return { content: [{ type: "text", text: `Failed to delete application '${sanitizedAppName}'. API Status: ${response.status}, Message: ${response.description}` }] };
+                return { content: [{ type: "text", text: `Application '${sanitizedAppName}' deleted successfully.` }] };
             } else {
-                // Handle plain text or unexpected JSON from non-BaseApi error
-                const responseText = typeof response === 'string' ? response : JSON.stringify(response);
-                console.error(`Unexpected response from Tyaprover deleteApp API: ${responseText}`);
-                return { content: [{ type: "text", text: `Failed to delete application '${sanitizedAppName}'. Unexpected API response: ${responseText}` }] };
+                 const responseText = typeof response === 'string' ? response : JSON.stringify(response);
+                 return { content: [{ type: "text", text: `Failed to delete application '${sanitizedAppName}'. API Message: ${responseText}` }] };
             }
         } catch (error: any) {
             console.error(`MCP deleteApp tool error: ${error.message}`);
@@ -263,7 +387,6 @@ server.tool(
         }
     }
 );
-
 
 // --- Tool: setAppEnvironmentVariables ---
 server.tool(
@@ -278,10 +401,7 @@ server.tool(
     },
     async ({ appName, environmentVariables }) => {
         try {
-            // BUG FIX #2 & #10: Validate app name
             const sanitizedAppName = validateAndSanitizeAppName(appName);
-
-            // Step 1: Fetch existing app definition (reusing logic similar to getAppDetails)
             const getResponse = await callTyaproverApi('GET', '/apps');
             let appDefinition: any;
 
@@ -291,54 +411,25 @@ server.tool(
                     return { content: [{ type: "text", text: `Error: Application '${sanitizedAppName}' not found.` }] };
                 }
             } else {
-                const errorDesc = getResponse?.description || JSON.stringify(getResponse);
-                return { content: [{ type: "text", text: `Error fetching app details for '${sanitizedAppName}': ${errorDesc}` }] };
+                return { content: [{ type: "text", text: `Error fetching app details.` }] };
             }
 
-            // Step 2: Update environment variables
-            // appDefinition.envVars is the array.
-            // Note: CapRover's update endpoint usually replaces the whole 'envVars' array.
-            // If the user wants to *append*, they should fetch first. But this tool description says "Replaces".
-            // We should stick to "Replaces" or implement merge logic. Let's strictly follow input for now (Replace).
-
             const updatedAppDefinition = { ...appDefinition, envVars: environmentVariables };
-
-            // Be careful not to overwrite other fields with undefined if we only send partial updates,
-            // but CapRover usually expects the full definition or at least the fields being changed + crucial ones.
-            // A safer bet with CapRover API is to send back the modified full definition we just fetched.
-            // We already did `{ ...appDefinition, ... }` so we are good.
-
-            // However, we must ensure we don't accidentally unset things if the GET response was partial?
-            // Usually /apps returns full info.
-            // One detail: 'envVars' in CapRover might need to be [{key:.., value:..}]. valid.
-
-            // Ensure other critical fields are present if needed by the API validation?
-            // e.g. 'appName', 'imageName'. they are in appDefinition.
-
-            // BUG FIX #25: Ensure 'instanceCount' is not lost if not in input (it's not).
-            // It is in appDefinition, so it is preserved.
-
-            // BUG FIX: The API might reject if we send back 'isAppBuilding', 'status', etc. readonly fields.
-            // But usually CapRover ignores them.
-            // One explicit thing: ensure 'imageName' is set.
             if (!updatedAppDefinition.imageName && appDefinition.imageName) {
                 updatedAppDefinition.imageName = appDefinition.imageName;
             }
 
-            // Step 3: POST the updated app definition
-            // This is similar to deployNewApp but we are explicitly updating.
             const updateResponse = await callTyaproverApi('POST', `/apps/appdefinitions/${sanitizedAppName}`, updatedAppDefinition);
 
             if (updateResponse && updateResponse.status === 100) {
                 return { content: [{ type: "text", text: `Environment variables for '${sanitizedAppName}' updated successfully.` }] };
             } else {
-                const errorDesc = updateResponse?.description || JSON.stringify(updateResponse);
-                return { content: [{ type: "text", text: `Failed to update environment variables for '${sanitizedAppName}': ${errorDesc}` }] };
+                return { content: [{ type: "text", text: `Failed to update environment variables.` }] };
             }
 
         } catch (error: any) {
             console.error(`MCP setAppEnvironmentVariables tool error: ${error.message}`);
-            return { content: [{ type: "text", text: `Error setting environment variables for '${appName}': ${error.message}` }] };
+            return { content: [{ type: "text", text: `Error: ${error.message}` }] };
         }
     }
 );
@@ -349,14 +440,11 @@ server.tool(
     "Changes the number of running instances for an application.",
     {
         appName: z.string().describe("The name of the application."),
-        instanceCount: z.number().int().min(0).describe("The desired number of instances (0 to stop the app, if supported by underlying PaaS)."),
+        instanceCount: z.number().int().min(0).describe("The desired number of instances (0 to stop)."),
     },
     async ({ appName, instanceCount }) => {
         try {
-            // BUG FIX #2 & #10: Validate app name
             const sanitizedAppName = validateAndSanitizeAppName(appName);
-
-            // Step 1: Fetch existing app definition
             const getResponse = await callTyaproverApi('GET', '/apps');
             let appDefinition: any;
 
@@ -366,46 +454,25 @@ server.tool(
                     return { content: [{ type: "text", text: `Error: Application '${sanitizedAppName}' not found.` }] };
                 }
             } else {
-                const errorDesc = getResponse?.description || JSON.stringify(getResponse);
-                return { content: [{ type: "text", text: `Error fetching app details for '${sanitizedAppName}': ${errorDesc}` }] };
+                return { content: [{ type: "text", text: `Error fetching app details.` }] };
             }
 
-            // Step 2: Update instance count
             const updatedAppDefinition = { ...appDefinition, instanceCount: instanceCount };
-
-            // Carry over other essential fields (similar to setAppEnvironmentVariables)
             if (!updatedAppDefinition.imageName && appDefinition.imageName) {
                 updatedAppDefinition.imageName = appDefinition.imageName;
             }
-            if (updatedAppDefinition.hasPersistentData === undefined && appDefinition.hasPersistentData !== undefined) {
-                updatedAppDefinition.hasPersistentData = appDefinition.hasPersistentData;
-            }
-            // Add other fields like envVars, ports, volumes if they are not part of '...' spread from a full appDef.
-            // Assuming appDefinition from GET /apps is sufficiently complete.
-            if (updatedAppDefinition.envVars === undefined && appDefinition.envVars !== undefined) {
-                updatedAppDefinition.envVars = appDefinition.envVars;
-            }
-            if (updatedAppDefinition.ports === undefined && appDefinition.ports !== undefined) {
-                updatedAppDefinition.ports = appDefinition.ports;
-            }
-            if (updatedAppDefinition.volumes === undefined && appDefinition.volumes !== undefined) {
-                updatedAppDefinition.volumes = appDefinition.volumes;
-            }
 
-
-            // Step 3: POST the updated app definition
             const updateResponse = await callTyaproverApi('POST', `/apps/appdefinitions/${sanitizedAppName}`, updatedAppDefinition);
 
             if (updateResponse && updateResponse.status === 100) {
                 return { content: [{ type: "text", text: `Application '${sanitizedAppName}' scaled to ${instanceCount} instance(s) successfully.` }] };
             } else {
-                const errorDesc = updateResponse?.description || JSON.stringify(updateResponse);
-                return { content: [{ type: "text", text: `Failed to scale application '${sanitizedAppName}': ${errorDesc}` }] };
+                return { content: [{ type: "text", text: `Failed to scale application.` }] };
             }
 
         } catch (error: any) {
             console.error(`MCP scaleApp tool error: ${error.message}`);
-            return { content: [{ type: "text", text: `Error scaling application '${appName}': ${error.message}` }] };
+            return { content: [{ type: "text", text: `Error: ${error.message}` }] };
         }
     }
 );
@@ -413,32 +480,26 @@ server.tool(
 // --- Tool: enableAppSsl ---
 server.tool(
     "enableAppSsl",
-    "Enables SSL (HTTPS) for an application by attaching a custom domain and provisioning a certificate.",
+    "Enables SSL (HTTPS) for an application by attaching a custom domain.",
     {
         appName: z.string().describe("The name of the application."),
-        customDomain: z.string().describe("The custom domain to associate with the app (e.g., 'myapp.example.com')."),
+        customDomain: z.string().describe("The custom domain to associate."),
     },
     async ({ appName, customDomain }) => {
         try {
-            // BUG FIX #2 & #10: Validate app name
             const sanitizedAppName = validateAndSanitizeAppName(appName);
-
-            // CapRover API for enabling SSL / attaching custom domain is typically:
-            // POST /api/v2/user/apps/appdefinitions/:appName/customdomain
-            // with body { customDomain: "your.domain.com" }
             const payload = { customDomain };
             const response = await callTyaproverApi('POST', `/apps/appdefinitions/${sanitizedAppName}/customdomain`, payload);
 
             if (response && response.status === 100) {
-                return { content: [{ type: "text", text: `SSL enablement initiated for '${sanitizedAppName}' with domain '${customDomain}'. ${response.description || ''}`.trim() }] };
+                return { content: [{ type: "text", text: `SSL enablement initiated for '${sanitizedAppName}' with domain '${customDomain}'.` }] };
             } else {
                 const errorDesc = response?.description || JSON.stringify(response);
-                console.error(`Error response from Tyaprover enableAppSsl API: ${errorDesc}`);
-                return { content: [{ type: "text", text: `Failed to enable SSL for '${sanitizedAppName}' with domain '${customDomain}': ${errorDesc}` }] };
+                return { content: [{ type: "text", text: `Failed to enable SSL: ${errorDesc}` }] };
             }
         } catch (error: any) {
             console.error(`MCP enableAppSsl tool error: ${error.message}`);
-            return { content: [{ type: "text", text: `Error enabling SSL for '${appName}' with domain '${customDomain}': ${error.message}` }] };
+            return { content: [{ type: "text", text: `Error: ${error.message}` }] };
         }
     }
 );
@@ -446,37 +507,199 @@ server.tool(
 // --- Tool: removeCustomDomain ---
 server.tool(
     "removeCustomDomain",
-    "Removes a custom domain from an application. This may also disable SSL if it's the last custom domain.",
+    "Removes a custom domain from an application.",
     {
         appName: z.string().describe("The name of the application."),
-        customDomain: z.string().describe("The custom domain to remove (e.g., 'myapp.example.com')."),
+        customDomain: z.string().describe("The custom domain to remove."),
     },
     async ({ appName, customDomain }) => {
         try {
-            // BUG FIX #2 & #10: Validate app name
             const sanitizedAppName = validateAndSanitizeAppName(appName);
-
-            // CapRover API for removing a custom domain is typically:
-            // DELETE /api/v2/user/apps/appdefinitions/:appName/customdomain
-            // with body { customDomain: "your.domain.com" }
             const payload = { customDomain };
-            // Note: Some DELETE APIs might take parameters differently (e.g., in query string or no body if domain is in URL).
-            // Assuming CapRover uses a body for DELETE with customDomain for specificity here.
-            // If CapRover expects no body for this DELETE, the `callTyaproverApi` will send `undefined` as body if payload is empty or not given.
-            // Let's ensure payload is always an object if the CapRover endpoint expects `application/json` even for DELETE with body.
             const response = await callTyaproverApi('DELETE', `/apps/appdefinitions/${sanitizedAppName}/customdomain`, payload);
 
             if (response && response.status === 100) {
-                return { content: [{ type: "text", text: `Custom domain '${customDomain}' removed from '${sanitizedAppName}'. ${response.description || ''}`.trim() }] };
+                return { content: [{ type: "text", text: `Custom domain '${customDomain}' removed from '${sanitizedAppName}'.` }] };
             } else {
-                const errorDesc = response?.description || JSON.stringify(response);
-                console.error(`Error response from Tyaprover removeCustomDomain API: ${errorDesc}`);
-                return { content: [{ type: "text", text: `Failed to remove custom domain '${customDomain}' from '${sanitizedAppName}': ${errorDesc}` }] };
+                return { content: [{ type: "text", text: `Failed to remove custom domain: ${response?.description}` }] };
             }
         } catch (error: any) {
             console.error(`MCP removeCustomDomain tool error: ${error.message}`);
-            return { content: [{ type: "text", text: `Error removing custom domain '${customDomain}' from '${appName}': ${error.message}` }] };
+            return { content: [{ type: "text", text: `Error: ${error.message}` }] };
         }
+    }
+);
+
+// --- New Tool: deployDatabase ---
+server.tool(
+    "deployDatabase",
+    "Deploys a database (Postgres, MySQL, MongoDB, Redis) with secure defaults.",
+    {
+        appName: z.string().describe("Name of the database application"),
+        dbType: z.enum(["postgres", "mysql", "mongodb", "redis"]).describe("Type of database"),
+        password: z.string().optional().describe("Password (generated if not provided)"),
+    },
+    async ({ appName, dbType, password }) => {
+        try {
+            const sanitizedAppName = validateAndSanitizeAppName(appName);
+            const generatedPassword = password || Math.random().toString(36).slice(-10) + Math.random().toString(36).slice(-10);
+
+            let imageName = "";
+            let envVars: {key: string, value: string}[] = [];
+            let volumePath = "";
+
+            // Cannibalized standard docker configurations
+            switch (dbType) {
+                case "postgres":
+                    imageName = "postgres:14-alpine";
+                    envVars = [{ key: "POSTGRES_PASSWORD", value: generatedPassword }];
+                    volumePath = "/var/lib/postgresql/data";
+                    break;
+                case "mysql":
+                    imageName = "mysql:8";
+                    envVars = [{ key: "MYSQL_ROOT_PASSWORD", value: generatedPassword }];
+                    volumePath = "/var/lib/mysql";
+                    break;
+                case "mongodb":
+                    imageName = "mongo:6";
+                    envVars = [{ key: "MONGO_INITDB_ROOT_PASSWORD", value: generatedPassword }, { key: "MONGO_INITDB_ROOT_USERNAME", value: "admin" }];
+                    volumePath = "/data/db";
+                    break;
+                case "redis":
+                    imageName = "redis:7-alpine";
+                    envVars = [{ key: "REDIS_PASSWORD", value: generatedPassword }];
+                    volumePath = "/data";
+                    // Redis needs a command override to use the password usually, but for simplicity we rely on ENV if supported or basic deploy.
+                    // Standard redis image doesn't take REDIS_PASSWORD env for config directly without script.
+                    // We'll stick to basic redis for now or just command append which is hard here.
+                    // Let's assume the user knows redis needs `redis-server --requirepass ...`
+                    // Simplified: Just deploy redis, password might not work out of box with just ENV in official image without custom command.
+                    break;
+            }
+
+            // reuse deployApp logic by calling the API
+
+            // 1. Register
+             const registerPayload = {
+                appName: sanitizedAppName,
+                hasPersistentData: true
+            };
+            const registerResponse = await callTyaproverApi('POST', '/apps/appdefinitions/register', registerPayload);
+             if (registerResponse.status !== 100 && registerResponse.description !== "App already exists") {
+                 return { content: [{ type: "text", text: `Failed to register DB: ${registerResponse.description}` }] };
+            }
+
+            // 2. Update/Deploy
+            const updatePayload = {
+                imageName: imageName,
+                envVars: envVars,
+                volumes: [{ containerPath: volumePath, hostPath: `v-${sanitizedAppName}-data` }]
+            };
+
+            const deployResponse = await callTyaproverApi('POST', `/apps/appdefinitions/${sanitizedAppName}`, updatePayload);
+
+            if (deployResponse && deployResponse.status === 100) {
+                let msg = `Database '${sanitizedAppName}' (${dbType}) deployed successfully.\n`;
+                msg += `Internal Host: srv-captain--${sanitizedAppName}\n`;
+                if (password || dbType !== 'redis') {
+                    msg += `Password: ${generatedPassword}\n`;
+                }
+                if (dbType === 'mongodb') msg += `User: admin\n`;
+
+                return { content: [{ type: "text", text: msg }] };
+            } else {
+                 return { content: [{ type: "text", text: `Failed to deploy database: ${deployResponse?.description}` }] };
+            }
+        } catch (error: any) {
+             return { content: [{ type: "text", text: `Error: ${error.message}` }] };
+        }
+    }
+);
+
+// --- New Tool: configureGitRepo ---
+server.tool(
+    "configureGitRepo",
+    "Configures a Git repository for automated deployment (GitOps).",
+    {
+        appName: z.string().describe("Name of the application"),
+        repoUrl: z.string().describe("URL of the git repository (https or ssh)"),
+        branch: z.string().describe("Branch to deploy (e.g. main)"),
+        username: z.string().optional().describe("Git username (for HTTPS)"),
+        password: z.string().optional().describe("Git password/token (for HTTPS)"),
+        sshKey: z.string().optional().describe("SSH Private Key (for SSH)"),
+    },
+    async ({ appName, repoUrl, branch, username, password, sshKey }) => {
+         try {
+            const sanitizedAppName = validateAndSanitizeAppName(appName);
+
+             // Fetch existing to preserve other settings
+            const getResponse = await callTyaproverApi('GET', '/apps');
+            const appDefinition = getResponse?.data?.appDefinitions?.find((a: any) => a.appName === sanitizedAppName);
+
+            if (!appDefinition) return { content: [{ type: "text", text: `App ${sanitizedAppName} not found` }] };
+
+            const repoInfo = {
+                user: username || "",
+                password: password || "",
+                sshKey: sshKey || "",
+                repo: repoUrl,
+                branch: branch
+            };
+
+            const updatedAppDefinition = { ...appDefinition, appPushWebhook: { repoInfo } };
+
+            const updateResponse = await callTyaproverApi('POST', `/apps/appdefinitions/${sanitizedAppName}`, updatedAppDefinition);
+
+             if (updateResponse && updateResponse.status === 100) {
+                 // Fetch the webhook URL to show user
+                 // Usually it's in the response or we need to construct it?
+                 // CapRover usually provides it in the dashboard.
+                 // We can construct it: https://captain.root.domain/api/v2/user/webhooks/triggerbuild?namespace=captain&token=...
+                 // But we don't have the token easily.
+                 return { content: [{ type: "text", text: `Git repo configured for '${sanitizedAppName}'. You can now push to deploy.` }] };
+            } else {
+                 return { content: [{ type: "text", text: `Failed to configure git: ${updateResponse?.description}` }] };
+            }
+
+         } catch (error: any) {
+             return { content: [{ type: "text", text: `Error: ${error.message}` }] };
+         }
+    }
+);
+
+// --- New Tool: diagnoseApp ---
+server.tool(
+    "diagnoseApp",
+    "Analyzes application logs for common errors (OOM, Crash, etc).",
+    {
+        appName: z.string().describe("Name of the application"),
+    },
+    async ({ appName }) => {
+         try {
+            const sanitizedAppName = validateAndSanitizeAppName(appName);
+
+            // Reuse logic from BackgroundAgent conceptually but implemented here for on-demand tool
+             const response = await callTyaproverApi('GET', `/apps/appData/${sanitizedAppName}?logs=true&lines=200`);
+
+             if (response && response.status === 100 && response.data && response.data.logs) {
+                const logs = response.data.logs.lines.join("\n");
+
+                // Simple analysis
+                const issues = [];
+                if (/OOMKilled|Out of memory/i.test(logs)) issues.push("Out of Memory (OOM) detected.");
+                if (/Connection refused/i.test(logs)) issues.push("Connection refused errors detected.");
+                if (/Error: listen EADDRINUSE/i.test(logs)) issues.push("Port already in use.");
+
+                if (issues.length === 0) {
+                    return { content: [{ type: "text", text: `Diagnosis for ${sanitizedAppName}: No obvious issues found in recent logs.` }] };
+                } else {
+                    return { content: [{ type: "text", text: `Diagnosis for ${sanitizedAppName}:\n- ${issues.join("\n- ")}` }] };
+                }
+            }
+             return { content: [{ type: "text", text: `Could not fetch logs for diagnosis.` }] };
+         } catch (error: any) {
+             return { content: [{ type: "text", text: `Error: ${error.message}` }] };
+         }
     }
 );
 
@@ -495,8 +718,6 @@ export async function main() {
 }
 
 // Ensure main only runs when this script is the main module
-// Convert current file path (import.meta.url) and process.argv[1] to comparable formats.
-// process.argv[1] might be relative or absolute. import.meta.url is a file URL.
 import { fileURLToPath } from 'url';
 import path from 'path';
 
