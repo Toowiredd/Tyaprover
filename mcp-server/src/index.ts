@@ -1,5 +1,5 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import fetch from 'node-fetch'; // For making API calls to Tyaprover
 
@@ -14,9 +14,11 @@ if (!TYAPROVER_API_URL || !TYAPROVER_AUTH_TOKEN) {
     process.exit(1);
 }
 
-const serverCapabilities: McpServerOptionsCapabilities = {
-    resources: {}, // Not implementing resource providers in this iteration
-    tools: {},     // Tools will be added below
+// Define the capabilities type locally since we can't import it easily from the SDK in this context if it's not exported or if there are path issues.
+// Based on SDK usage, it expects an object.
+const serverCapabilities = {
+    resources: {},
+    tools: {},
 };
 
 const server = new McpServer({
@@ -63,6 +65,66 @@ async function callTyaproverApi(method: 'GET' | 'POST' | 'DELETE', path: string,
         throw error; // Re-throw to be caught by tool handler
     }
 }
+
+// --- Mixture of Experts Implementation ---
+
+// Interface for Expert Output
+interface ExpertOpinion {
+    expertName: string;
+    stage: string;
+    details: string;
+    score: number; // 0 to 1 confidence/progress score
+}
+
+// Expert 1: Setup Expert - Checks basic existence and configuration
+function setupExpert(app: any): ExpertOpinion {
+    if (!app) return { expertName: "SetupExpert", stage: "Non-Existent", details: "App definition is missing", score: 0 };
+
+    if (app.imageName === 'captain-placeholder-app-image') {
+        return { expertName: "SetupExpert", stage: "Registered", details: "App registered but no image deployed yet.", score: 0.2 };
+    }
+
+    return { expertName: "SetupExpert", stage: "Deployed", details: `App deployed with image ${app.imageName}`, score: 1.0 };
+}
+
+// Expert 2: Security Expert - Checks SSL and Custom Domains
+function securityExpert(app: any): ExpertOpinion {
+    const hasCustomDomain = app.customDomain && app.customDomain.length > 0;
+    const hasSsl = app.hasDefaultSubDomainSsl || (hasCustomDomain && app.customDomain.some((d: any) => d.hasSsl));
+    const forceSsl = app.forceSsl;
+
+    if (forceSsl && hasSsl) {
+        return { expertName: "SecurityExpert", stage: "Secure", details: "SSL enabled and forced.", score: 1.0 };
+    } else if (hasSsl) {
+        return { expertName: "SecurityExpert", stage: "Partially Secure", details: "SSL enabled but not forced.", score: 0.8 };
+    } else if (hasCustomDomain) {
+        return { expertName: "SecurityExpert", stage: "Exposed", details: "Custom domain mapped but no SSL.", score: 0.5 };
+    } else {
+        return { expertName: "SecurityExpert", stage: "Internal/Default", details: "Using default subdomain, no custom SSL.", score: 0.2 };
+    }
+}
+
+// Expert 3: Scaling Expert - Checks instance count
+function scalingExpert(app: any): ExpertOpinion {
+    const instances = app.instanceCount || 1;
+    if (instances > 1) {
+        return { expertName: "ScalingExpert", stage: "Scaled", details: `Running ${instances} instances.`, score: 1.0 };
+    } else if (instances === 1) {
+        return { expertName: "ScalingExpert", stage: "Single Instance", details: "Standard single instance.", score: 0.5 };
+    } else {
+        return { expertName: "ScalingExpert", stage: "Stopped", details: "Zero instances running.", score: 0.0 };
+    }
+}
+
+// Expert 4: Storage Expert - Checks persistence
+function storageExpert(app: any): ExpertOpinion {
+    const hasVol = app.volumes && app.volumes.length > 0;
+    if (hasVol) {
+        return { expertName: "StorageExpert", stage: "Stateful", details: `Has ${app.volumes.length} persistent volume(s).`, score: 1.0 };
+    }
+    return { expertName: "StorageExpert", stage: "Stateless", details: "No persistent volumes configured.", score: 0.0 };
+}
+
 
 // --- Tool: listApps ---
 server.tool(
@@ -390,6 +452,75 @@ server.tool(
         } catch (error: any) {
             console.error(`MCP removeCustomDomain tool error: ${error.message}`);
             return { content: [{ type: "text", text: `Error removing custom domain '${customDomain}' from '${appName}': ${error.message}` }] };
+        }
+    }
+);
+
+// --- Tool: identifyUserJourneys ---
+server.tool(
+    "identifyUserJourneys",
+    "Uses a Mixture of Experts approach to analyze the current state of apps and interactions (domains, SSL) to identify user journeys.",
+    {
+        // No params needed, it analyzes the whole system or can filter by appName optionally
+        appName: z.string().optional().describe("Optional: Filter by specific application name.")
+    },
+    async ({ appName }) => {
+        try {
+            const response = await callTyaproverApi('GET', '/apps');
+
+            if (response && response.status === 100 && response.data && response.data.appDefinitions) {
+                const apps = response.data.appDefinitions;
+
+                // Filter if appName is provided
+                const appsToAnalyze = appName ? apps.filter((a: any) => a.appName === appName) : apps;
+
+                const analysisResults = appsToAnalyze.map((app: any) => {
+                    const setup = setupExpert(app);
+                    const security = securityExpert(app);
+                    const scaling = scalingExpert(app);
+                    const storage = storageExpert(app);
+
+                    // Gating/Aggregation Logic
+                    let overallStage = "Unknown";
+
+                    if (setup.score < 0.5) {
+                        overallStage = "Prototype / Incomplete";
+                    } else if (security.score > 0.8 && scaling.score > 0.8) {
+                        overallStage = "Production (Scaled & Secure)";
+                    } else if (security.score > 0.8) {
+                        overallStage = "Production (Secure)";
+                    } else if (setup.score === 1.0) {
+                         overallStage = "Development / Staging";
+                    }
+
+                    return {
+                        appName: app.appName,
+                        overallJourneyStage: overallStage,
+                        experts: {
+                            setup,
+                            security,
+                            scaling,
+                            storage
+                        }
+                    };
+                });
+
+                return {
+                    content: [{
+                        type: "json_object",
+                        json_object: {
+                            summary: `Analyzed ${appsToAnalyze.length} apps.`,
+                            journeys: analysisResults
+                        }
+                    }],
+                };
+
+            } else {
+                return { content: [{ type: "text", text: `Error: Unable to fetch apps for analysis. ${response.description || ''}` }] };
+            }
+        } catch (error: any) {
+            console.error(`MCP identifyUserJourneys tool error: ${error.message}`);
+            return { content: [{ type: "text", text: `Error identifying user journeys: ${error.message}` }] };
         }
     }
 );
