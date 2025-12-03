@@ -11,13 +11,14 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,
-    "noImplicitAny": false
+    "noImplicitAny": false,
+    "isolatedModules": true
   },
   "include": [
-    "src/**/*"
+    "src/**/*",
+    "jest.config.js"
   ],
   "exclude": [
-    "node_modules",
-    "**/*.test.ts"
+    "node_modules"
   ]
 }
