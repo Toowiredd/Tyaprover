@@ -49,5 +49,14 @@ describe("MCP Server Tools", () => {
         expect(registeredTools).toContain("scaleApp");
         expect(registeredTools).toContain("enableAppSsl");
         expect(registeredTools).toContain("removeCustomDomain");
+        expect(registeredTools).toContain("deployDatabase");
+        expect(registeredTools).toContain("configureGitRepo");
+        expect(registeredTools).toContain("getAppLogs");
+        expect(registeredTools).toContain("diagnoseApp");
+        expect(registeredTools).toContain("getSystemStatus");
+        expect(registeredTools).toContain("listNodes");
+        expect(registeredTools).toContain("listRegistries");
+        expect(registeredTools).toContain("addRegistry");
+        expect(registeredTools).toContain("listOneClickApps");
     });
 });

@@ -16,7 +16,8 @@ router.post('/assistant', (req: Request, res: Response, next: NextFunction) => {
     const { prompt } = req.body as ClaudeRequestBody;
 
     if (!prompt || typeof prompt !== 'string' || prompt.trim() === '') {
-        return res.send(new BaseApi(ApiStatusCodes.STATUS_ERROR_BAD_NAME, 'Prompt is required and must be a non-empty string.'));
+        res.send(new BaseApi(ApiStatusCodes.STATUS_ERROR_BAD_NAME, 'Prompt is required and must be a non-empty string.'));
+        return;
     }
 
     const claudeArgs = ['-p', prompt, '--output-format', 'json'];
@@ -40,7 +41,8 @@ router.post('/assistant', (req: Request, res: Response, next: NextFunction) => {
         Logger.e(`ClaudeRouter: Failed to start claude CLI: ${error.message}`);
         if (!res.headersSent) {
             // Use 503 Service Unavailable if the service itself (Claude CLI) can't be reached/started
-            return res.status(503).send(new BaseApi(ApiStatusCodes.STATUS_ERROR_GENERIC, `Failed to start Claude CLI: ${error.message}`));
+            res.status(503).send(new BaseApi(ApiStatusCodes.STATUS_ERROR_GENERIC, `Failed to start Claude CLI: ${error.message}`));
+            return;
         }
     });
 
@@ -54,7 +56,8 @@ router.post('/assistant', (req: Request, res: Response, next: NextFunction) => {
             Logger.e(`ClaudeRouter: claude CLI exited with code ${code}. Stderr: ${stderrData}. Stdout: ${stdoutData}`);
             // Prefer stderr if available for the error message
             const errorMessage = stderrData.trim() || `Claude CLI exited with code ${code}.`;
-            return res.status(500).send(new BaseApi(ApiStatusCodes.STATUS_ERROR_GENERIC, errorMessage));
+            res.status(500).send(new BaseApi(ApiStatusCodes.STATUS_ERROR_GENERIC, errorMessage));
+            return;
         }
 
         // Exit code is 0
@@ -64,7 +67,8 @@ router.post('/assistant', (req: Request, res: Response, next: NextFunction) => {
             const message = stderrData.trim() ? `Claude CLI produced no output. Stderr: ${stderrData}` : 'Claude CLI produced no output.';
             const response = new BaseApi(ApiStatusCodes.STATUS_OK_PARTIALLY, message);
             response.data = { rawOutput: stderrData.trim() };
-            return res.status(200).send(response);
+            res.status(200).send(response);
+            return;
         }
 
         try {
