@@ -58,5 +58,26 @@ describe("MCP Server Tools", () => {
         expect(registeredTools).toContain("listRegistries");
         expect(registeredTools).toContain("addRegistry");
         expect(registeredTools).toContain("listOneClickApps");
+
+        // Tier 1: Critical System Tools
+        expect(registeredTools).toContain("enableRootSSL");
+        expect(registeredTools).toContain("forceSSL");
+        expect(registeredTools).toContain("createBackup");
+        expect(registeredTools).toContain("changePassword");
+        expect(registeredTools).toContain("getRootDomain");
+        expect(registeredTools).toContain("updateRootDomain");
+        expect(registeredTools).toContain("addDockerNode");
+
+        // Tier 2: High-Priority App Management
+        expect(registeredTools).toContain("registerApp");
+        expect(registeredTools).toContain("renameApp");
+        expect(registeredTools).toContain("enableAppWebhookBuild");
+        expect(registeredTools).toContain("updateRegistry");
+        expect(registeredTools).toContain("deleteRegistry");
+        expect(registeredTools).toContain("setDefaultPushRegistry");
+        expect(registeredTools).toContain("getNetDataInfo");
+        expect(registeredTools).toContain("cleanupUnusedImages");
+        expect(registeredTools).toContain("restartApp");
+        expect(registeredTools).toContain("getAppBuildLogs");
     });
 });

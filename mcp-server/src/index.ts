@@ -703,6 +703,454 @@ server.tool(
     }
 );
 
+// ========================================
+// TIER 1: CRITICAL SYSTEM TOOLS (Security & Backup)
+// ========================================
+
+// --- Tool: enableRootSSL ---
+server.tool(
+    "enableRootSSL",
+    "Enables SSL for the root CapRover domain (captain.domain.com).",
+    {
+        emailAddress: z.string().email().describe("Email for Let's Encrypt registration"),
+    },
+    async ({ emailAddress }) => {
+        try {
+            const payload = { emailAddress };
+            const response = await callTyaproverApi('POST', '/system/enablessl/', payload);
+
+            if (response && response.status === 100) {
+                return { content: [{ type: "text", text: "Root SSL enabled successfully." }] };
+            }
+            return { content: [{ type: "text", text: `Failed to enable root SSL: ${response?.description}` }] };
+        } catch (error: any) {
+            return { content: [{ type: "text", text: `Error: ${error.message}` }] };
+        }
+    }
+);
+
+// --- Tool: forceSSL ---
+server.tool(
+    "forceSSL",
+    "Forces SSL (HTTPS) for a specific application.",
+    {
+        appName: z.string().describe("The name of the application"),
+        isEnabled: z.boolean().describe("Whether to force HTTPS"),
+    },
+    async ({ appName, isEnabled }) => {
+        try {
+            const sanitizedAppName = validateAndSanitizeAppName(appName);
+            const getResponse = await callTyaproverApi('GET', '/apps');
+            let appDefinition: any;
+
+            if (getResponse?.status === 100 && getResponse.data?.appDefinitions) {
+                appDefinition = getResponse.data.appDefinitions.find((a: any) => a.appName === sanitizedAppName);
+                if (!appDefinition) {
+                    return { content: [{ type: "text", text: `Error: App '${sanitizedAppName}' not found.` }] };
+                }
+            } else {
+                return { content: [{ type: "text", text: "Error fetching app details." }] };
+            }
+
+            const updatedAppDefinition = { ...appDefinition, forceSsl: isEnabled };
+            if (!updatedAppDefinition.imageName && appDefinition.imageName) {
+                updatedAppDefinition.imageName = appDefinition.imageName;
+            }
+
+            const response = await callTyaproverApi('POST', `/apps/appdefinitions/${sanitizedAppName}`, updatedAppDefinition);
+
+            if (response?.status === 100) {
+                return { content: [{ type: "text", text: `Force SSL ${isEnabled ? 'enabled' : 'disabled'} for '${sanitizedAppName}'.` }] };
+            }
+            return { content: [{ type: "text", text: "Failed to update force SSL setting." }] };
+        } catch (error: any) {
+            return { content: [{ type: "text", text: `Error: ${error.message}` }] };
+        }
+    }
+);
+
+// --- Tool: createBackup ---
+server.tool(
+    "createBackup",
+    "Creates a full system backup of CapRover configuration and data.",
+    {},
+    async () => {
+        try {
+            const response = await callTyaproverApi('POST', '/system/createbackup/', {});
+
+            if (response && response.status === 100) {
+                return { content: [{ type: "text", text: `Backup created successfully. ${response.data?.downloadToken ? `Download token: ${response.data.downloadToken}` : ''}` }] };
+            }
+            return { content: [{ type: "text", text: `Failed to create backup: ${response?.description}` }] };
+        } catch (error: any) {
+            return { content: [{ type: "text", text: `Error: ${error.message}` }] };
+        }
+    }
+);
+
+// --- Tool: changePassword ---
+server.tool(
+    "changePassword",
+    "Changes the CapRover admin password.",
+    {
+        oldPassword: z.string().describe("Current password"),
+        newPassword: z.string().min(8).describe("New password (min 8 characters)"),
+    },
+    async ({ oldPassword, newPassword }) => {
+        try {
+            const payload = { oldPassword, newPassword };
+            const response = await callTyaproverApi('POST', '/user/changepassword/', payload);
+
+            if (response && response.status === 100) {
+                return { content: [{ type: "text", text: "Password changed successfully." }] };
+            }
+            return { content: [{ type: "text", text: `Failed to change password: ${response?.description}` }] };
+        } catch (error: any) {
+            return { content: [{ type: "text", text: `Error: ${error.message}` }] };
+        }
+    }
+);
+
+// --- Tool: getRootDomain ---
+server.tool(
+    "getRootDomain",
+    "Retrieves the root domain configuration for CapRover.",
+    {},
+    async () => {
+        try {
+            const response = await callTyaproverApi('GET', '/system/info/');
+
+            if (response?.data?.rootDomain) {
+                return { content: [{ type: "text", text: `Root domain: ${response.data.rootDomain}` }] };
+            }
+            return { content: [{ type: "text", text: "Failed to retrieve root domain." }] };
+        } catch (error: any) {
+            return { content: [{ type: "text", text: `Error: ${error.message}` }] };
+        }
+    }
+);
+
+// --- Tool: updateRootDomain ---
+server.tool(
+    "updateRootDomain",
+    "Updates the root domain for CapRover. WARNING: This can break your setup if misconfigured!",
+    {
+        rootDomain: z.string().describe("The new root domain (e.g., example.com)"),
+    },
+    async ({ rootDomain }) => {
+        try {
+            const payload = { rootDomain };
+            const response = await callTyaproverApi('POST', '/system/changerootdomain/', payload);
+
+            if (response && response.status === 100) {
+                return { content: [{ type: "text", text: `Root domain updated to '${rootDomain}'. CapRover may restart.` }] };
+            }
+            return { content: [{ type: "text", text: `Failed to update root domain: ${response?.description}` }] };
+        } catch (error: any) {
+            return { content: [{ type: "text", text: `Error: ${error.message}` }] };
+        }
+    }
+);
+
+// --- Tool: addDockerNode ---
+server.tool(
+    "addDockerNode",
+    "Adds a new Docker Swarm node to the cluster.",
+    {
+        nodeType: z.enum(["manager", "worker"]).describe("Type of node to add"),
+        privateKey: z.string().describe("SSH private key for authentication"),
+        remoteNodeIpAddress: z.string().describe("IP address of the remote node"),
+        sshPort: z.number().optional().describe("SSH port (default: 22)"),
+        sshUser: z.string().optional().describe("SSH username (default: root)"),
+    },
+    async (input) => {
+        try {
+            const payload = {
+                isManager: input.nodeType === "manager",
+                privateKey: input.privateKey,
+                remoteNodeIpAddress: input.remoteNodeIpAddress,
+                sshPort: input.sshPort || 22,
+                sshUser: input.sshUser || "root",
+            };
+            const response = await callTyaproverApi('POST', '/system/nodes/addnode/', payload);
+
+            if (response && response.status === 100) {
+                return { content: [{ type: "text", text: `Node ${input.remoteNodeIpAddress} added successfully as ${input.nodeType}.` }] };
+            }
+            return { content: [{ type: "text", text: `Failed to add node: ${response?.description}` }] };
+        } catch (error: any) {
+            return { content: [{ type: "text", text: `Error: ${error.message}` }] };
+        }
+    }
+);
+
+// ========================================
+// TIER 2: HIGH-PRIORITY APP MANAGEMENT
+// ========================================
+
+// --- Tool: registerApp ---
+server.tool(
+    "registerApp",
+    "Explicitly registers a new application (without deploying).",
+    {
+        appName: z.string().describe("The name of the application"),
+        hasPersistentData: z.boolean().optional().describe("Whether app has persistent data (default: false)"),
+    },
+    async ({ appName, hasPersistentData }) => {
+        try {
+            const sanitizedAppName = validateAndSanitizeAppName(appName);
+            const payload = {
+                appName: sanitizedAppName,
+                hasPersistentData: hasPersistentData || false,
+            };
+            const response = await callTyaproverApi('POST', '/apps/appdefinitions/register', payload);
+
+            if (response && response.status === 100) {
+                return { content: [{ type: "text", text: `Application '${sanitizedAppName}' registered successfully.` }] };
+            }
+            return { content: [{ type: "text", text: `Failed to register app: ${response?.description}` }] };
+        } catch (error: any) {
+            return { content: [{ type: "text", text: `Error: ${error.message}` }] };
+        }
+    }
+);
+
+// --- Tool: renameApp ---
+server.tool(
+    "renameApp",
+    "Renames an existing application.",
+    {
+        oldAppName: z.string().describe("Current application name"),
+        newAppName: z.string().describe("New application name"),
+    },
+    async ({ oldAppName, newAppName }) => {
+        try {
+            const sanitizedOldName = validateAndSanitizeAppName(oldAppName);
+            const sanitizedNewName = validateAndSanitizeAppName(newAppName);
+            const payload = { appName: sanitizedOldName, newAppName: sanitizedNewName };
+            const response = await callTyaproverApi('POST', '/apps/appdefinitions/rename', payload);
+
+            if (response && response.status === 100) {
+                return { content: [{ type: "text", text: `Application renamed from '${sanitizedOldName}' to '${sanitizedNewName}'.` }] };
+            }
+            return { content: [{ type: "text", text: `Failed to rename app: ${response?.description}` }] };
+        } catch (error: any) {
+            return { content: [{ type: "text", text: `Error: ${error.message}` }] };
+        }
+    }
+);
+
+// --- Tool: enableAppWebhookBuild ---
+server.tool(
+    "enableAppWebhookBuild",
+    "Enables webhook build trigger for an application (for CI/CD integration).",
+    {
+        appName: z.string().describe("The name of the application"),
+        tokenVersion: z.string().optional().describe("Token version for webhook (generated if not provided)"),
+    },
+    async ({ appName, tokenVersion }) => {
+        try {
+            const sanitizedAppName = validateAndSanitizeAppName(appName);
+            const payload = {
+                appName: sanitizedAppName,
+                tokenVersion: tokenVersion || Date.now().toString(),
+            };
+            const response = await callTyaproverApi('POST', '/apps/webhooks/triggerbuild', payload);
+
+            if (response && response.status === 100) {
+                return { content: [{ type: "text", text: `Webhook build enabled for '${sanitizedAppName}'. Token: ${response.data?.token || 'check dashboard'}` }] };
+            }
+            return { content: [{ type: "text", text: `Failed to enable webhook: ${response?.description}` }] };
+        } catch (error: any) {
+            return { content: [{ type: "text", text: `Error: ${error.message}` }] };
+        }
+    }
+);
+
+// --- Tool: updateRegistry ---
+server.tool(
+    "updateRegistry",
+    "Updates an existing Docker registry configuration.",
+    {
+        registryId: z.string().describe("ID of the registry to update"),
+        registryUser: z.string().optional().describe("Username for the registry"),
+        registryPassword: z.string().optional().describe("Password/Token for the registry"),
+        registryDomain: z.string().optional().describe("Domain of the registry"),
+        registryImagePrefix: z.string().optional().describe("Image prefix"),
+    },
+    async (input) => {
+        try {
+            const payload: any = { id: input.registryId };
+            if (input.registryUser) payload.registryUser = input.registryUser;
+            if (input.registryPassword) payload.registryPassword = input.registryPassword;
+            if (input.registryDomain) payload.registryDomain = input.registryDomain;
+            if (input.registryImagePrefix !== undefined) payload.registryImagePrefix = input.registryImagePrefix;
+
+            const response = await callTyaproverApi('POST', '/registries/update/', payload);
+
+            if (response && response.status === 100) {
+                return { content: [{ type: "text", text: `Registry ${input.registryId} updated successfully.` }] };
+            }
+            return { content: [{ type: "text", text: `Failed to update registry: ${response?.description}` }] };
+        } catch (error: any) {
+            return { content: [{ type: "text", text: `Error: ${error.message}` }] };
+        }
+    }
+);
+
+// --- Tool: deleteRegistry ---
+server.tool(
+    "deleteRegistry",
+    "Deletes a Docker registry configuration.",
+    {
+        registryId: z.string().describe("ID of the registry to delete"),
+    },
+    async ({ registryId }) => {
+        try {
+            const payload = { registryId };
+            const response = await callTyaproverApi('POST', '/registries/delete/', payload);
+
+            if (response && response.status === 100) {
+                return { content: [{ type: "text", text: `Registry ${registryId} deleted successfully.` }] };
+            }
+            return { content: [{ type: "text", text: `Failed to delete registry: ${response?.description}` }] };
+        } catch (error: any) {
+            return { content: [{ type: "text", text: `Error: ${error.message}` }] };
+        }
+    }
+);
+
+// --- Tool: setDefaultPushRegistry ---
+server.tool(
+    "setDefaultPushRegistry",
+    "Sets the default registry for pushing Docker images.",
+    {
+        registryId: z.string().describe("ID of the registry to set as default"),
+    },
+    async ({ registryId }) => {
+        try {
+            const payload = { registryId };
+            const response = await callTyaproverApi('POST', '/registries/setdefaultpushregistry/', payload);
+
+            if (response && response.status === 100) {
+                return { content: [{ type: "text", text: `Registry ${registryId} set as default push registry.` }] };
+            }
+            return { content: [{ type: "text", text: `Failed to set default registry: ${response?.description}` }] };
+        } catch (error: any) {
+            return { content: [{ type: "text", text: `Error: ${error.message}` }] };
+        }
+    }
+);
+
+// --- Tool: getNetDataInfo ---
+server.tool(
+    "getNetDataInfo",
+    "Retrieves NetData monitoring information and configuration.",
+    {},
+    async () => {
+        try {
+            const response = await callTyaproverApi('GET', '/system/netdata/');
+
+            if (response && response.status === 100) {
+                return { content: [{ type: "text", text: JSON.stringify(response.data, null, 2) }] };
+            }
+            return { content: [{ type: "text", text: `Failed to get NetData info: ${response?.description}` }] };
+        } catch (error: any) {
+            return { content: [{ type: "text", text: `Error: ${error.message}` }] };
+        }
+    }
+);
+
+// --- Tool: cleanupUnusedImages ---
+server.tool(
+    "cleanupUnusedImages",
+    "Cleans up unused Docker images to free disk space.",
+    {
+        mostRecentLimit: z.number().optional().describe("Keep this many most recent images per app (default: 2)"),
+    },
+    async ({ mostRecentLimit }) => {
+        try {
+            const payload = { mostRecentLimit: mostRecentLimit || 2 };
+            const response = await callTyaproverApi('POST', '/system/cleanup/images/', payload);
+
+            if (response && response.status === 100) {
+                return { content: [{ type: "text", text: `Image cleanup completed. ${response.data?.message || ''}` }] };
+            }
+            return { content: [{ type: "text", text: `Failed to cleanup images: ${response?.description}` }] };
+        } catch (error: any) {
+            return { content: [{ type: "text", text: `Error: ${error.message}` }] };
+        }
+    }
+);
+
+// --- Tool: restartApp ---
+server.tool(
+    "restartApp",
+    "Restarts an application (stops and starts).",
+    {
+        appName: z.string().describe("The name of the application to restart"),
+    },
+    async ({ appName }) => {
+        try {
+            const sanitizedAppName = validateAndSanitizeAppName(appName);
+            // First scale to 0, then back to original count
+            const getResponse = await callTyaproverApi('GET', '/apps');
+            let appDefinition: any;
+
+            if (getResponse?.status === 100 && getResponse.data?.appDefinitions) {
+                appDefinition = getResponse.data.appDefinitions.find((a: any) => a.appName === sanitizedAppName);
+                if (!appDefinition) {
+                    return { content: [{ type: "text", text: `Error: App '${sanitizedAppName}' not found.` }] };
+                }
+            } else {
+                return { content: [{ type: "text", text: "Error fetching app details." }] };
+            }
+
+            const originalCount = appDefinition.instanceCount || 1;
+
+            // Scale to 0
+            const updatedAppDef = { ...appDefinition, instanceCount: 0, imageName: appDefinition.imageName };
+            await callTyaproverApi('POST', `/apps/appdefinitions/${sanitizedAppName}`, updatedAppDef);
+
+            // Wait a bit
+            await new Promise(resolve => setTimeout(resolve, 2000));
+
+            // Scale back up
+            updatedAppDef.instanceCount = originalCount;
+            const response = await callTyaproverApi('POST', `/apps/appdefinitions/${sanitizedAppName}`, updatedAppDef);
+
+            if (response?.status === 100) {
+                return { content: [{ type: "text", text: `Application '${sanitizedAppName}' restarted successfully.` }] };
+            }
+            return { content: [{ type: "text", text: "Failed to restart app." }] };
+        } catch (error: any) {
+            return { content: [{ type: "text", text: `Error: ${error.message}` }] };
+        }
+    }
+);
+
+// --- Tool: getAppBuildLogs ---
+server.tool(
+    "getAppBuildLogs",
+    "Retrieves build logs for an application.",
+    {
+        appName: z.string().describe("The name of the application"),
+    },
+    async ({ appName }) => {
+        try {
+            const sanitizedAppName = validateAndSanitizeAppName(appName);
+            const response = await callTyaproverApi('GET', `/apps/appData/${sanitizedAppName}?buildLogs=true`);
+
+            if (response?.status === 100 && response.data?.logs) {
+                return { content: [{ type: "text", text: response.data.logs.lines?.join("\n") || "(No build logs)" }] };
+            }
+            return { content: [{ type: "text", text: `Failed to fetch build logs: ${response?.description}` }] };
+        } catch (error: any) {
+            return { content: [{ type: "text", text: `Error: ${error.message}` }] };
+        }
+    }
+);
+
 
 // --- Main function to run the server ---
 // Export main for potential programmatic start, but primarily for conditional execution
