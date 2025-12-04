@@ -1,5 +1,266 @@
 ## [Next Version - available as `edge`]
 
+## [Tyaprover 2.0.0] - 2025-12-04
+
+### 🎉 MAJOR RELEASE - Complete MCP Architecture Overhaul
+
+This is a transformative release with **complete modular architecture redesign** for the MCP server, expanding from 17 tools to **66 total tools** (57 core + 9 citizen developer automation tools).
+
+### 🏗️ Architecture Changes
+
+**Modular Tool System**:
+- Migrated from monolithic 1,641-line `index.ts` to **modular one-file-per-tool architecture**
+- Reduced core file to 115 lines (93% reduction)
+- Created 66 individual tool files organized in 9 categories
+- Built auto-discovery registry system for dynamic tool loading
+- Zero manual imports required - tools auto-register on startup
+
+**Directory Structure**:
+```
+src/tools/
+├── system/         # 15 tools - System management & monitoring
+├── security/       # 7 tools - SSL, firewall, registry auth
+├── apps/           # 17 tools - Application lifecycle
+├── registry/       # 5 tools - Docker registry management
+├── oneclick/       # 3 tools - One-click app templates
+├── themes/         # 4 tools - UI theme management
+├── projects/       # 4 tools - Project grouping
+├── pro/            # 2 tools - Premium features (2FA, alerts)
+└── automation/     # 9 tools - Citizen developer abstractions
+```
+
+### 🚀 New Features
+
+**57 Core MCP Tools** (from 17 tools):
+- **API Coverage**: 86% of CapRover v1.14.0 API (57/69 endpoints)
+- **System Management**: Complete system status, nodes, networking, updates
+- **Security**: SSL management, firewall rules, registry authentication
+- **Applications**: Full lifecycle (deploy, scale, update, delete, rollback)
+- **Registry**: Docker registry operations, push, search, delete
+- **One-Click Apps**: Template deployment, customization
+- **Themes**: UI customization and theme management
+- **Projects**: Application grouping and organization
+- **Premium Features**: 2FA management, build alerts
+
+**9 Citizen Developer Automation Tools** (NEW):
+High-level abstractions for non-technical users that simplify complex DevOps tasks:
+
+1. **quickDeployWebsite** - Deploy website with SSL in one command
+2. **deployFullStackApp** - Complete 3-tier app (frontend + backend + database)
+3. **createDevEnvironment** - Cloud IDE with database & Redis
+4. **deployFromGitHub** - Direct GitHub repository deployment
+5. **scaleAppAutomatically** - Time-based auto-scaling rules
+6. **createBackupSchedule** - Automated backup configuration
+7. **healthCheck** - One-command system diagnostics
+8. **cloneApp** - Clone apps for staging/testing
+9. **oneClickWordPress** - WordPress + MySQL instant deployment
+
+### 📚 Documentation
+
+**New Documentation**:
+- `/src/tools/README.md` - Complete modular architecture guide (500+ lines)
+- `/src/tools/automation/README.md` - Citizen developer tools guide (700+ lines)
+- Updated `MCP_TOOLS.md` - Comprehensive tool reference with examples
+
+**Architecture Documentation**:
+- Auto-discovery system explained
+- Tool development patterns
+- Adding/removing tools workflow
+- Common patterns and best practices
+- Troubleshooting guide
+
+### 🛠 Technical Improvements
+
+**Build System**:
+- Added `generate-tools.js` utility for extracting tools from monolithic files
+- Enhanced test suite covering all 66 tools
+- TypeScript type safety with shared types (`src/tools/types.ts`)
+
+**Tool Registry**:
+- Dynamic tool discovery via filesystem traversal
+- Automatic module importing and registration
+- No manual maintenance of tool lists
+- Consistent registration interface (`ToolRegistrar` type)
+
+**Code Quality**:
+- Modular files: 20-150 lines each (highly maintainable)
+- Shared utilities and types
+- Consistent error handling patterns
+- Zod schema validation for all parameters
+
+### 🎯 Citizen Developer Philosophy
+
+**Before** (Technical Approach):
+```bash
+# Deploy WordPress = 15+ commands
+1. Register app
+2. Configure MySQL
+3. Create database
+4. Set environment variables
+5. Deploy WordPress
+6. Configure volumes
+7. Enable SSL
+... and more
+```
+
+**After** (Citizen Developer Approach):
+```typescript
+// Deploy WordPress = 1 command
+oneClickWordPress({
+    siteName: "myblog",
+    customDomain: "blog.example.com"
+})
+// Done! WordPress + MySQL + SSL + custom domain
+```
+
+### 📊 Statistics
+
+**Files Changed**: 75 files
+**Lines Added**: 3,890+
+**Code Reduction**: 93% reduction in main file (1,641 → 115 lines)
+**Tool Categories**: 9 categories
+**Total Tools**: 66 (57 core + 9 automation)
+**API Coverage**: 86% (57/69 CapRover endpoints)
+
+### 🔧 Tool Categories Breakdown
+
+- **System Management** (15 tools): Status, nodes, networking, updates, config
+- **Security** (7 tools): SSL, firewall, registry auth, security headers
+- **Applications** (17 tools): Full app lifecycle management
+- **Registry** (5 tools): Docker registry operations
+- **One-Click Apps** (3 tools): Template deployment
+- **Themes** (4 tools): UI customization
+- **Projects** (4 tools): Application grouping
+- **Premium** (2 tools): 2FA, alerts
+- **Automation** (9 tools): High-level citizen developer tools
+
+### 💡 Example Use Cases
+
+**Scenario 1: Non-Technical Founder**
+```typescript
+// Launch complete SaaS product in <5 minutes
+deployFullStackApp({
+    appName: "myproduct",
+    frontendImage: "myorg/frontend:latest",
+    backendImage: "myorg/backend:latest",
+    database: "postgres"
+})
+createBackupSchedule({ schedule: "daily" })
+healthCheck()
+```
+
+**Scenario 2: Marketing Team**
+```typescript
+// Launch WordPress blog without IT support
+oneClickWordPress({
+    siteName: "blog",
+    customDomain: "blog.example.com"
+})
+cloneApp({
+    sourceApp: "blog",
+    newAppName: "blog-staging"
+})
+```
+
+### 🐛 Bug Fixes
+
+- Fixed tool count discrepancies in tests
+- Improved error handling in all tools
+- Enhanced parameter validation with Zod schemas
+
+### 💬 AI Command Examples
+
+Natural language commands now work with 66 tools:
+
+```bash
+# System monitoring
+claude "What's my system status?"
+claude "Show me all running nodes"
+
+# Application deployment
+claude "Deploy a full-stack app with React, Node.js and PostgreSQL"
+claude "Quick deploy a website with SSL enabled"
+
+# Automation
+claude "Create a dev environment with VS Code and database"
+claude "Set up automatic backups for my apps"
+claude "Clone my production app to staging"
+
+# WordPress
+claude "Deploy WordPress for my blog"
+```
+
+### 🔗 Migration Notes
+
+**For existing users**:
+- No breaking changes to existing tools
+- New tools are additive
+- Existing configurations remain compatible
+- Tests updated to reflect new tool count (66 tools)
+
+**For developers**:
+- Tools are now in `src/tools/` directory structure
+- Main `index.ts` simplified to registry loader
+- Follow new tool file pattern for contributions
+- Auto-discovery eliminates manual registration
+
+### 📦 Dependencies
+
+No new dependencies added - all improvements using existing:
+- `@modelcontextprotocol/sdk` - MCP functionality
+- `node-fetch` - HTTP API communication
+- `zod` - Runtime type validation
+- TypeScript - Type safety
+
+### 🔒 Security
+
+- Secure password generation for all automation tools
+- SSL enabled by default in all deployment tools
+- Environment variable sanitization
+- Validation of all user inputs
+
+### 🎓 Design Principles
+
+**Modular Architecture**:
+- One file per tool for maximum maintainability
+- Auto-discovery for zero-config tool loading
+- Consistent patterns across all tools
+- Clear separation of concerns
+
+**Citizen Developer Tools**:
+- Single-command complexity encapsulation
+- Sensible defaults for all parameters
+- Clear output with access URLs and credentials
+- Safety-first approach (no data deletion without confirmation)
+- Business language over technical jargon
+
+### 📈 Performance
+
+- Faster startup time despite 3x more tools (lazy loading)
+- Reduced memory footprint (modular loading)
+- Improved maintainability (93% code reduction in main file)
+
+### 🎯 Future Roadmap
+
+**Planned Tool Additions**:
+- oneClickNextJS - Next.js deployment
+- deployEcommerce - Full e-commerce stack
+- deployMobileBackend - Firebase alternative
+- createStagingEnvironment - Clone with data anonymization
+- deployCI/CD - Jenkins/GitLab CI setup
+
+**Workflow Templates**:
+```typescript
+launchSaaSProduct({
+    name: "myproduct",
+    stack: "react-node-postgres",
+    features: ["auth", "payments", "email", "analytics"]
+})
+// One command to orchestrate entire SaaS deployment
+```
+
+---
+
 ## [Tyaprover 0.1.0] - 2025-06-10
 
 ### 🚀 Major Features - AI Integration

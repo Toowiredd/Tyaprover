@@ -1,8 +1,18 @@
 # Tyaprover MCP Server for Claude Code CLI
 
-**AI-Powered Application Deployment and Management**
+**Version 2.0.0 - AI-Powered Application Deployment and Management**
 
 This MCP (Model Context Protocol) server enables natural language control of your Tyaprover instance through Claude Code CLI. Deploy, manage, and monitor your applications using conversational commands instead of complex CLI syntax.
+
+## What's New in v2.0.0 🎉
+
+**Major Architecture Overhaul** - Complete modular redesign with 66 total tools:
+- **57 Core MCP Tools** covering 86% of CapRover API
+- **9 Citizen Developer Automation Tools** for non-technical users
+- **Modular Architecture** - One file per tool (93% code reduction)
+- **Auto-Discovery System** - Zero-config tool loading
+
+See [CHANGELOG](../CHANGELOG.md) for complete v2.0.0 details.
 
 ## 🚀 Quick Start
 
@@ -189,63 +199,134 @@ claude --mcp-config /path/to/your/mcp-config.json
 > Your prompt for Tyaprover
 ```
 
-## Available Tools
+## Available Tools (66 Total)
 
-The Tyaprover MCP server currently exposes the following tools (this list will grow as more tools are implemented):
+The Tyaprover MCP server now exposes **66 comprehensive tools** organized in 9 categories:
 
-*   **`tyaprover/listApps`**:
-    *   Description: Lists all deployed applications.
-    *   Inputs: None.
-    *   Output: JSON array of application definitions.
-*   **`tyaprover/getAppDetails`**:
-    *   Description: Gets detailed information for a specific application.
-    *   Inputs: `appName` (string).
-    *   Output: JSON object of the application definition.
-*   **`tyaprover/deployNewApp`**:
-    *   Description: Deploys a new application or updates an existing one.
-    *   Inputs: `appName` (string), `imageName` (string), `instanceCount` (optional number), `environmentVariables` (optional array of key-value pairs), `portMappings` (optional array), `volumes` (optional array), etc.
-    *   Output: Text confirmation.
-*   **`tyaprover/deleteApp`**:
-    *   Description: Deletes an application. This is a destructive operation.
-    *   Inputs: `appName` (string).
-    *   Output: Text confirmation.
-*   **`tyaprover/setAppEnvironmentVariables`**:
-    *   Description: Sets or updates environment variables for an application. This replaces all existing variables with the provided set.
-    *   Inputs:
-        *   `appName` (string)
-        *   `environmentVariables` (array of objects, each with `key` and `value` strings)
-    *   Output: Text confirmation.
-*   **`tyaprover/scaleApp`**:
-    *   Description: Changes the number of running instances for an application.
-    *   Inputs:
-        *   `appName` (string)
-        *   `instanceCount` (number, 0 to stop)
-    *   Output: Text confirmation.
-*   **`tyaprover/enableAppSsl`**:
-    *   Description: Enables SSL (HTTPS) for an application by attaching a custom domain.
-    *   Inputs:
-        *   `appName` (string)
-        *   `customDomain` (string)
-    *   Output: Text confirmation.
-*   **`tyaprover/removeCustomDomain`**:
-    *   Description: Removes a custom domain from an application.
-    *   Inputs:
-        *   `appName` (string)
-        *   `customDomain` (string)
-    *   Output: Text confirmation.
+### Core Tools (57)
 
-*(More tools like `deleteApp`, `setAppEnvironmentVariables`, `scaleApp`, `enableAppSsl`, `removeCustomDomain` are planned).*
+**System Management (15 tools)**:
+- `getSystemStatus` - System status, version, load balancer info
+- `listNodes` - List all cluster nodes
+- `addNode` - Add worker node to cluster
+- `updateSystem` - Perform system updates
+- `getNetData` - NetData monitoring metrics
+- And 10 more system management tools...
+
+**Security (7 tools)**:
+- `enableSsl` - Enable SSL for root domain
+- `forceHttpsOnDomain` - Force HTTPS redirect
+- `setFirewallRule` - Configure firewall rules
+- `enableRegistryAuth` - Enable Docker registry authentication
+- And 3 more security tools...
+
+**Applications (17 tools)**:
+- `listApps` - List all applications
+- `getAppDetails` - Get detailed app info
+- `registerApp` - Register new application
+- `deployApp` - Deploy application
+- `deleteApp` - Delete application
+- `scaleApp` - Scale instance count
+- `setAppEnvironmentVariables` - Configure env vars
+- `enableAppSsl` - Enable SSL for app
+- `rollbackApp` - Rollback to previous version
+- And 8 more app management tools...
+
+**Registry (5 tools)**:
+- `enableDockerRegistry` - Enable self-hosted registry
+- `pushImageToRegistry` - Push image to registry
+- `searchRegistryImages` - Search registry images
+- `deleteRegistryImage` - Delete registry image
+- `getRegistryAuth` - Get registry credentials
+
+**One-Click Apps (3 tools)**:
+- `listOneClickApps` - List available templates
+- `deployOneClickApp` - Deploy from template
+- `getOneClickAppDetails` - Get template details
+
+**Themes (4 tools)**:
+- `listThemes` - List UI themes
+- `activateTheme` - Activate a theme
+- `uploadCustomTheme` - Upload custom theme
+- `deleteCustomTheme` - Delete custom theme
+
+**Projects (4 tools)**:
+- `listProjects` - List project groups
+- `createProject` - Create project group
+- `addAppToProject` - Add app to project
+- `deleteProject` - Delete project group
+
+**Premium Features (2 tools)**:
+- `enableTwoFactorAuth` - Enable 2FA
+- `configureBuildAlerts` - Configure build notifications
+
+### Citizen Developer Automation Tools (9)
+
+High-level abstractions for non-technical users:
+
+1. **`quickDeployWebsite`** - Deploy website with SSL in one command
+   - Input: `websiteName`, `dockerImage`, optional `customDomain`
+   - Auto-configures: SSL, port 80, custom domain
+
+2. **`deployFullStackApp`** - Complete 3-tier application deployment
+   - Input: `appName`, `frontendImage`, `backendImage`, `database` type
+   - Auto-configures: Database with credentials, inter-service networking, environment variables
+
+3. **`createDevEnvironment`** - Cloud IDE with database & Redis
+   - Input: `envName`, `language`, optional `includeDatabase`, `includeRedis`
+   - Auto-configures: Code-server (VS Code in browser), PostgreSQL, Redis
+
+4. **`deployFromGitHub`** - Direct GitHub repository deployment
+   - Input: `appName`, `githubRepo`, `branch`, `port`
+   - Auto-configures: Git integration, auto-deploy on push, webhook
+
+5. **`scaleAppAutomatically`** - Time-based auto-scaling rules
+   - Input: `appName`, `rule` (business-hours/always-on), instance counts
+   - Auto-configures: Instance scaling based on time patterns
+
+6. **`createBackupSchedule`** - Automated backup configuration
+   - Input: `schedule` (daily/weekly/monthly), `includeApps` list
+   - Auto-configures: Backup creation, cron schedule recommendations
+
+7. **`healthCheck`** - One-command system diagnostics
+   - Input: None
+   - Auto-analyzes: System status, app health, SSL status, common issues
+
+8. **`cloneApp`** - Clone apps for staging/testing
+   - Input: `sourceApp`, `newAppName`, optional `includeData`
+   - Auto-configures: Duplicate configuration, separate volumes
+
+9. **`oneClickWordPress`** - WordPress + MySQL instant deployment
+   - Input: `siteName`, optional `customDomain`, `adminEmail`
+   - Auto-configures: WordPress, MySQL, database connection, SSL
+
+For complete tool documentation and examples, see:
+- [MCP_TOOLS.md](./MCP_TOOLS.md) - Comprehensive tool reference
+- [src/tools/README.md](./src/tools/README.md) - Architecture guide
+- [src/tools/automation/README.md](./src/tools/automation/README.md) - Citizen developer guide
 
 ## Example Prompts
 
-Here are some ways you might prompt Claude to use these tools:
+**System Management**:
+- `"What's my Tyaprover system status?"`
+- `"Show me all nodes in my cluster"`
+- `"Enable NetData monitoring"`
 
-*   `"List all my apps in Tyaprover."` (Uses `tyaprover/listApps`)
-*   `"Get details for the app 'my-api' in Tyaprover."` (Uses `tyaprover/getAppDetails`)
-*   `"Deploy a new Tyaprover app named 'blog' from the image 'wordpress:latest'. Give it 1 instance and expose container port 80."` (Uses `tyaprover/deployNewApp`)
-*   `"Update the 'blog' app in Tyaprover to use the image 'wordpress:5.8' and set an environment variable 'WP_DEBUG' to 'true'."` (Uses `tyaprover/deployNewApp` for updates)
+**Application Deployment**:
+- `"List all my apps"`
+- `"Deploy a new app named 'api' using node:18"`
+- `"Scale my database app to 3 instances"`
+- `"Enable SSL for my website"`
 
-Claude will interpret your natural language and attempt to call the appropriate tool with the correct parameters.
+**Citizen Developer Commands** (High-Level):
+- `"Quick deploy a website with SSL for my portfolio"`
+- `"Deploy a complete full-stack app with React, Node and PostgreSQL"`
+- `"Create a dev environment with VS Code and database"`
+- `"Deploy WordPress for my blog at blog.example.com"`
+- `"Clone my production app to staging"`
+- `"Run a health check on my system"`
+
+Claude will interpret your natural language and call the appropriate tools automatically.
 
 ## Troubleshooting
 
