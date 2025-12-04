@@ -3,10 +3,10 @@
 Complete reference for all 59 MCP tools providing comprehensive control over Tyaprover (CapRover).
 
 **Last Updated**: 2025-12-04
-**Total Tools**: 67 (57 core + 10 automation)
+**Total Tools**: 66 (57 core + 9 automation)
 **API Coverage**: ~86% (57/69 core endpoints)
 **Architecture**: Modular (one file per tool)
-**Citizen Developer Tools**: 10 high-level automation tools
+**Citizen Developer Tools**: 9 high-level automation tools
 
 ## Quick Stats
 
@@ -31,12 +31,12 @@ src/tools/
 ├─ themes/ (4 tools)       # Theme management
 ├─ projects/ (4 tools)     # Project management
 ├─ pro/ (2 tools)          # Pro features & 2FA
-└─ automation/ (10 tools)  # 🎯 Citizen Developer Tools
+└─ automation/ (9 tools)   # 🎯 Citizen Developer Tools
 ```
 
 ## Citizen Developer Tools (New!)
 
-10 high-level automation tools for **non-technical users**:
+9 high-level automation tools for **non-technical users**:
 
 1. **quickDeployWebsite** - Deploy website with SSL in one command
 2. **deployFullStackApp** - Deploy frontend + backend + database
@@ -47,7 +47,6 @@ src/tools/
 7. **healthCheck** - One-click system health diagnostics
 8. **cloneApp** - Clone apps for staging/testing
 9. **oneClickWordPress** - WordPress + MySQL deployment
-10. **deployMinecraftServer** - Minecraft server deployment
 
 **See** [src/tools/automation/README.md](src/tools/automation/README.md) **for complete guide**
 

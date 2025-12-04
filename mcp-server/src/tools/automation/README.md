@@ -1,6 +1,6 @@
 # Citizen Developer Automation Tools
 
-**Total Tools**: 10
+**Total Tools**: 9
 **Target Audience**: Non-technical users, business users, citizen developers
 **Goal**: Simplify complex DevOps tasks into single-command operations
 
@@ -250,7 +250,6 @@ oneClickWordPress({
 
 ---
 
-### 10. deployMinecraftServer
 
 **Purpose**: Deploy Minecraft (Java Edition) server for gaming
 **Target Use Case**: Gaming servers, educational Minecraft projects
@@ -258,7 +257,6 @@ oneClickWordPress({
 
 **Example**:
 ```typescript
-deployMinecraftServer({
     serverName: "myserver",
     version: "1.20.1",
     maxPlayers: 20,
@@ -361,7 +359,6 @@ Tools use **business terms**, not technical jargon:
 **Goal**: Host Minecraft server for students/community
 
 **Tools Used**:
-1. `deployMinecraftServer` → Server deployed
 2. `createBackupSchedule` → Weekly world backups
 3. `scaleAppAutomatically` → Scale up during peak hours
 
