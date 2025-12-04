@@ -1,18 +1,66 @@
 # Tyaprover MCP Tools Reference
 
-Complete reference for all 36 MCP tools providing comprehensive control over Tyaprover (CapRover).
+Complete reference for all 59 MCP tools providing comprehensive control over Tyaprover (CapRover).
 
 **Last Updated**: 2025-12-04
-**Total Tools**: 36
-**API Coverage**: ~55% (36/69 endpoints)
+**Total Tools**: 67 (57 core + 10 automation)
+**API Coverage**: ~86% (57/69 core endpoints)
+**Architecture**: Modular (one file per tool)
+**Citizen Developer Tools**: 10 high-level automation tools
 
 ## Quick Stats
 
-- **Original Tools** (Pre-merge): 17
-- **New Tools Added**: 19
-  - Tier 1 (Critical System): 7
-  - Tier 2 (High-Priority): 12
-- **Coverage Improvement**: 27% → 55%
+- **Original Tools** (Pre-expansion): 17
+- **Tier 1 Added** (Critical System): 7 tools
+- **Tier 2 Added** (High-Priority): 12 tools
+- **Tier 3 Added** (Medium-Priority): 13 tools
+- **Tier 4 Added** (Advanced): 10 tools
+- **Coverage Improvement**: 27% → 86% (3.2x increase)
+
+## Modular Architecture
+
+Each of the 59 tools is now in its own individual file for maximum maintainability:
+
+```
+src/tools/
+├─ system/ (15 tools)      # System management
+├─ security/ (7 tools)     # Security & SSL
+├─ apps/ (17 tools)        # Application management
+├─ registry/ (5 tools)     # Docker registries
+├─ oneclick/ (3 tools)     # One-Click Apps
+├─ themes/ (4 tools)       # Theme management
+├─ projects/ (4 tools)     # Project management
+├─ pro/ (2 tools)          # Pro features & 2FA
+└─ automation/ (10 tools)  # 🎯 Citizen Developer Tools
+```
+
+## Citizen Developer Tools (New!)
+
+10 high-level automation tools for **non-technical users**:
+
+1. **quickDeployWebsite** - Deploy website with SSL in one command
+2. **deployFullStackApp** - Deploy frontend + backend + database
+3. **createDevEnvironment** - Cloud IDE with database & Redis
+4. **deployFromGitHub** - Deploy directly from GitHub
+5. **scaleAppAutomatically** - Time-based auto-scaling
+6. **createBackupSchedule** - Automated backup schedules
+7. **healthCheck** - One-click system health diagnostics
+8. **cloneApp** - Clone apps for staging/testing
+9. **oneClickWordPress** - WordPress + MySQL deployment
+10. **deployMinecraftServer** - Minecraft server deployment
+
+**See** [src/tools/automation/README.md](src/tools/automation/README.md) **for complete guide**
+
+```
+
+**Benefits**:
+- Easy to find: Each tool in its own file
+- Easy to modify: Change one tool without affecting others
+- Easy to test: Test tools in isolation
+- Git friendly: Smaller diffs, better code reviews
+- Auto-discovery: Just drop in a new file to add a tool
+
+See [src/tools/README.md](src/tools/README.md) for complete architecture documentation.
 
 ---
 
